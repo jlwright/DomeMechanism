@@ -28,6 +28,7 @@
 
 //Libraries to include
 #include <Wire.h>
+#include <Communication.h>
 //#include <VarSpeedServo.h>
 #include <math.h>
 //#include <EnableInterrupt.h>
