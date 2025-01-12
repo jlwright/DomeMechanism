@@ -44,6 +44,7 @@ Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x42);
 // our servo # counter
 uint8_t servonum = 0;
 
+#pragma region AppSettings
 // Set servo channels (0-15 per board)
 //pwm0 (0x40)
 #define ZAPCHANNEL 4
@@ -74,7 +75,6 @@ uint8_t servonum = 0;
 #define HP3XCHANNEL 8
 #define HP3YCHANNEL 9
 
-
 // These are the servo end points for the pie panels, adjust to open and close more or less
 #define BMSERVOMIN  300 // adjust for pie panel position (150 - 600)
 #define BMSERVOMAX  450 // adjust for pie panel position
@@ -84,14 +84,10 @@ uint8_t servonum = 0;
 #define LSSERVOMAX  450 // adjust for pie panel position
 #define LFSERVOMIN  300 // adjust for pie panel position (150 - 600)
 #define LFSERVOMAX  450 // adjust for pie panel position
-#define DSSERVOMIN  300 // adjust for pie panel position (150 - 600)
-#define DSSERVOMAX  450 // adjust for pie panel position
 
 // Servo end points for dome mechanisms
 #define ZAPSERVOMIN  350 // adjust Dome Zapper Down position (150 - 600)
 #define ZAPSERVOMAX  180 // adjust Dome Zapper Up position
-#define DRINKSERVOMIN  200 // adjust Drink Server Down position (150 - 600)
-#define DRINKSERVOMAX  320 // adjust Drink Server Up position
 #define PTURNSERVOMIN  180 // adjust Dome Zapper Turn position (150 - 600)
 #define PTURNSERVOMAX  450 // adjust Dome Zapper Turn position
 #define ZAPTURNSERVOMIN  500 // adjust Dome Zapper Turn position (150 - 600)
@@ -147,9 +143,7 @@ uint8_t servonum = 0;
 #define LSIN1 8 //Lightsaber Motor Driver IN1
 #define LSIN2 9 //Lightsaber Motor Driver IN2
 #define LFIN1 10 //Lifeform Motor Driver IN1
-#define LFIN2 11 //Lifeform Motor Driver IN2
-#define DSIN1 12 //Drink Server Motor Driver IN1
-#define DSIN2 13 //Drink Server Driver IN2
+#define LFIN2 11 //Lifeform Motor Driver IN2\
 
 //Limit Switches for up and down
 #define PTop 22 //Periscope top limit switch
@@ -162,8 +156,6 @@ uint8_t servonum = 0;
 #define LSBot 29 //Lightsaber bottom limit switch
 #define LFTop 30 //Lifeform top limit switch
 #define LFBot 31 //Lifeform bottom limit switch
-#define DSTop 32 //Drink Server top limit switch
-#define DSBot 33 //Drink Server bottom limit switch
 
 // These pins are connected to ground to trigger, this can be done with a push button or code added later to make this remote from another source
 #define buttonPin 38 // button pin to trigger dome zapper lift mechanism
@@ -172,6 +164,9 @@ uint8_t servonum = 0;
 #define buttonPin3 35 // button pin to trigger Lightsaber lift mechanism
 #define buttonPin4 36 // button pin to trigger Bad Motivator lift mechanism
 #define buttonPin5 39 // button pin to trigger Drink Server lift mechanism
+#pragma endregion
+
+#pragma region Timers
 // timers
 unsigned long currentMillis; // running clock reference
 
@@ -204,6 +199,7 @@ long dsinterval = 4000; // time between drink server going up
 // button timer for debounce if required
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
+#pragma endregion
 
 // sates to select from the different case functions
 static enum {ZAP_MOVE_TOP, ZAP_TOP} statezapup; //zapper up
@@ -216,8 +212,6 @@ static enum {BM_MOVE_TOP, BM_TOP} statebmup; //Bad Motivator up
 static enum {BM_MOVE_BOT, BM_BOT} statebmdown; //Bad Motivator down
 static enum {LS_MOVE_TOP, LS_TOP} statelsup; //Lightsaber up
 static enum {LS_MOVE_BOT, LS_BOT} statelsdown; //Lightsaber down
-//static enum {DS_MOVE_TOP, DS_TOP} statedsup; //Drink Server up
-//static enum {DS_MOVE_BOT, DS_BOT} statedsdown; //Drink Server down
 
 int statez; //zapper arm lift and turn
 int statezl; //zapper led
@@ -225,7 +219,6 @@ int statept; //periscope turn
 int statelf; //lifeform scanner
 int statelft; //lifeform scanner turn
 int statebml; //bad motivator led
-//int stateds; //drink server arm
 
 //set integers
 // storage for limit switch values
@@ -239,8 +232,6 @@ int LSTopVal = LOW;
 int LSBotVal = LOW;
 int LFTopVal = LOW;
 int LFBotVal = LOW;
-//int DSTopVal = LOW;
-//int DSBotVal = LOW;
 
 // input buttons
 int buttonPushCounter = 0;    // counter for the number of button presses
@@ -286,8 +277,6 @@ void setup() {
   pinMode(LSIN2, OUTPUT);
   pinMode(LFIN1, OUTPUT);
   pinMode(LFIN2, OUTPUT);
-//  pinMode(DSIN1, OUTPUT);
-//  pinMode(DSIN2, OUTPUT);
   //pinMode(ledPin, OUTPUT); // led pin on the arduino for testing
   
   // input pins
@@ -301,8 +290,6 @@ void setup() {
   pinMode(LSBot, INPUT_PULLUP);
   pinMode(LFTop, INPUT_PULLUP);
   pinMode(LFBot, INPUT_PULLUP);
-//  pinMode(DSTop, INPUT_PULLUP);
-//  pinMode(DSBot, INPUT_PULLUP);
   pinMode(buttonPin, INPUT_PULLUP);
   pinMode(buttonPin1, INPUT_PULLUP);
   pinMode(buttonPin2, INPUT_PULLUP);
@@ -321,8 +308,6 @@ void setup() {
   digitalWrite(LSIN2, LOW);
   digitalWrite(LFIN1, LOW);
   digitalWrite(LFIN2, LOW);
-//  digitalWrite(DSIN1, LOW);
-//  digitalWrite(DSIN2, LOW);
 
   //digitalWrite(ledPin, LOW); // set the led off
 
@@ -473,29 +458,6 @@ void loop() {
     statelsdown = LS_MOVE_BOT;
   }
 
-  /*//Drink Server
-  if (buttonPushCounter5 == 1) {
-    DrinkServerUp();
-  }
-  else if (buttonPushCounter5 == 2) {
-    if (DSTopVal == LOW && DSBotVal == HIGH) {
-    pwm0.setPWM(11, 0, DRINKSERVOMAX); //raise the drink server arm
-    }
-  }
-  else if (buttonPushCounter5 == 3) {
-    if (DSTopVal == LOW && DSBotVal == HIGH) {
-    pwm0.setPWM(11, 0, DRINKSERVOMIN); //lower the drink server arm
-    }
-  }
-  else if (buttonPushCounter5 == 4) {
-    DrinkServerDown();
-  }
-  else {
-    buttonPushCounter5 = 0;
-    statedsup = DS_MOVE_TOP;  // reset states for next lift sequence
-    statedsdown = DS_MOVE_BOT;
-  }*/
-
   SerialOut(); // print to serial all values for testing
   lastButtonState = buttonState; // reset the input button
   lastButtonState1 = buttonState1; // reset the input button
@@ -514,7 +476,7 @@ void DomeZapperUp() { // this function is for the dome zapper
     case ZAP_MOVE_TOP:
       if (ZTopVal != LOW) {
         if (digitalRead(ZTop) == HIGH && digitalRead(ZBot) == LOW) {
-          pwm0.setPWM(1, 0, ZSERVOMAX); // open the pie panel
+          pwm1.setPWM(2, 0, ZSERVOMAX); // open the pie panel
         }
         digitalWrite(ZIN1, HIGH); //turn the dc motor on
         digitalWrite(ZIN2, LOW);
@@ -545,7 +507,7 @@ void DomeZapperDown() { // this function is for the dome zapper
         digitalWrite(ZIN1, LOW); //turn the dc motor on
         digitalWrite(ZIN2, LOW);
         if (digitalRead(ZBot) == LOW && digitalRead(ZTop) == HIGH) {
-          pwm0.setPWM(1, 0, ZSERVOMIN); // close the pie panel
+          pwm1.setPWM(2, 0, ZSERVOMIN); // close the pie panel
         }
       }
       break;
@@ -698,7 +660,7 @@ void LifeformUp() { //button tirggered Lift Lifeform Scanner, when button trigge
     case LF_MOVE_TOP:
       if (LFTopVal != LOW) {
         if (digitalRead(LFTop) == HIGH && digitalRead(LFBot) == LOW) {
-          pwm0.setPWM(3, 0, LFSERVOMAX); // open the pie panel
+          pwm2.setPWM(0, 0, LFSERVOMAX); // open the pie panel
         }
         digitalWrite(LFIN1, HIGH); //turn the dc motor on
         digitalWrite(LFIN2, LOW);
@@ -728,7 +690,7 @@ void LifeformDown() { // this function lowers the Lifeform scanner
         digitalWrite(LFIN1, LOW); //turn the dc motor on
         digitalWrite(LFIN2, LOW);
         if (digitalRead(LFBot) == LOW && digitalRead(LFTop) == HIGH) {
-          pwm0.setPWM(3, 0, LFSERVOMIN); // close the pie panel
+          pwm2.setPWM(0, 0, LFSERVOMIN); // close the pie panel
         }
       }
       break;
@@ -776,7 +738,7 @@ void BadMotivatorUp() { //button tirggered Lift Bad Motivator, when button trigg
     case BM_MOVE_TOP:
       if (BMTopVal != LOW) {
         if (digitalRead(BMTop) == HIGH && digitalRead(BMBot) == LOW) {
-          pwm0.setPWM(0, 0, BMSERVOMAX); // open the pie panel
+          pwm1.setPWM(1, 0, BMSERVOMAX); // open the pie panel
         }
         digitalWrite(BMIN1, HIGH); //turn the dc motor on
         digitalWrite(BMIN2, LOW);
@@ -806,7 +768,7 @@ void BadMotivatorDown() { // this function lowers the Bad Motivator
         digitalWrite(BMIN1, LOW); //turn the dc motor on
         digitalWrite(BMIN2, LOW);
         if (digitalRead(BMBot) == LOW && digitalRead(BMTop) == HIGH) {
-          pwm0.setPWM(0, 0, BMSERVOMIN); // close the pie panel
+          pwm1.setPWM(1, 0, BMSERVOMIN); // close the pie panel
         }
       }
       break;
@@ -819,7 +781,7 @@ void LightsaberUp() { //button tirggered Lift Lightsaber, when button triggered 
     case LS_MOVE_TOP:
       if (LSTopVal != LOW) {
         if (digitalRead(LSTop) == HIGH && digitalRead(LSBot) == LOW) {
-          pwm0.setPWM(2, 0, LSSERVOMAX); // open the pie panel
+          pwm1.setPWM(0, 0, LSSERVOMAX); // open the pie panel
         }
         digitalWrite(LSIN1, HIGH); //turn the dc motor on
         digitalWrite(LSIN2, LOW);
@@ -849,55 +811,12 @@ void LightsaberDown() { // this function lowers the Lightsaber
         digitalWrite(LSIN1, LOW); //turn the dc motor on
         digitalWrite(LSIN2, LOW);
         if (digitalRead(LSBot) == LOW && digitalRead(LSTop) == HIGH) {
-          pwm0.setPWM(2, 0, LSSERVOMIN); // close the pie panel
+          pwm1.setPWM(0, 0, LSSERVOMIN); // close the pie panel
         }
       }
       break;
   }
 }
-
-
-/*void DrinkServerUp() { // this function is for the drinkserver
-  switch (statedsup) {
-    case DS_MOVE_TOP:
-      if (DSTopVal != LOW) {
-        if (digitalRead(DSTop) == HIGH && digitalRead(DSBot) == LOW) {
-          pwm0.setPWM(12, 0, DSSERVOMAX); // open the pie panel
-        }
-        digitalWrite(DSIN1, HIGH); //turn the dc motor on
-        digitalWrite(DSIN2, LOW);
-        statedsup = DS_TOP;
-      }
-      break;
-    case DS_TOP:
-      if (DSTopVal == LOW) {
-        digitalWrite(DSIN1, LOW); //turn the motor off
-        digitalWrite(DSIN2, LOW); //turn the motor off
-      }
-      break;
-  }
-}
-
-void DrinkServerDown() { // this function is for the drink server
-  switch (statedsdown) {
-    case DS_MOVE_BOT:
-      if (DSBotVal != LOW) {
-        digitalWrite(DSIN1, LOW); //turn the dc motor on
-        digitalWrite(DSIN2, HIGH);
-        statedsdown = DS_BOT;
-      }
-      break;
-    case DS_BOT:
-      if (DSBotVal == LOW) {
-        digitalWrite(DSIN1, LOW); //turn the dc motor on
-        digitalWrite(DSIN2, LOW);
-        if (digitalRead(DSBot) == LOW && digitalRead(DSTop) == HIGH) {
-          pwm0.setPWM(12, 0, DSSERVOMIN); // close the pie panel
-        }
-      }
-      break;
-  }
-}*/
 
 
 void readlimits() { //this function reads all the limit swtiches and stores their values for compare to end stops in the main loop, it's just written here to keep the loop code clean
@@ -911,8 +830,6 @@ void readlimits() { //this function reads all the limit swtiches and stores thei
   LSTopVal = digitalRead(LSTop);
   LFBotVal = digitalRead(LFBot);
   LFTopVal = digitalRead(LFTop);
-//  DSBotVal = digitalRead(DSBot);
-//  DSTopVal = digitalRead(DSTop);
 }
 
 void servoSetup() {
