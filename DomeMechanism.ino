@@ -33,26 +33,25 @@
 //#include <EnableInterrupt.h>
 #include <Adafruit_PWMServoDriver.h>
 
+#pragma region GlobalVariables
 //Call boards for i2c
 Adafruit_PWMServoDriver pwm0 = Adafruit_PWMServoDriver(0x40);
 Adafruit_PWMServoDriver pwm1 = Adafruit_PWMServoDriver(0x41);
 Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x42);
-
-// Define constants and values to stay the same
-#define SERIAL_PORT_SPEED 57600 // Define the port output serial communication speed
-#define PWM_FREQ 50
 
 // our servo # counter
 uint8_t servonum = 0;
 
 const byte numChars = 32; //character limit for Serial command
 char receivedChars[numChars]; //char array to store Serial command
-boolean newData = false;
-static enum {Periscope = 0,
-             LifeformScanner = 1
-            } domeCommand; //possible commands from body to dome
+boolean executingCommand = false; //tracks if a command is being executed
+#pragma endregion
 
 #pragma region AppSettings
+// Define constants and values to stay the same
+#define SERIAL_PORT_SPEED 57600 // Define the port output serial communication speed
+#define PWM_FREQ 50
+
 // Set servo channels (0-15 per board)
 //pwm0 (0x40)
 #define ZAPCHANNEL 4
@@ -166,12 +165,12 @@ static enum {Periscope = 0,
 #define LFBot 31 //Lifeform bottom limit switch
 
 // These pins are connected to ground to trigger, this can be done with a push button or code added later to make this remote from another source
-#define buttonPin 38 // button pin to trigger dome zapper lift mechanism
-#define buttonPin1 34 // button pin to trigger periscope lift mechanism
-#define buttonPin2 37 // button pin to trigger Lifeform scanner lift mechanism
-#define buttonPin3 35 // button pin to trigger Lightsaber lift mechanism
-#define buttonPin4 36 // button pin to trigger Bad Motivator lift mechanism
-#define buttonPin5 39 // button pin to trigger Drink Server lift mechanism
+// #define buttonPin 38 // button pin to trigger dome zapper lift mechanism
+// #define buttonPin1 34 // button pin to trigger periscope lift mechanism
+// #define buttonPin2 37 // button pin to trigger Lifeform scanner lift mechanism
+// #define buttonPin3 35 // button pin to trigger Lightsaber lift mechanism
+// #define buttonPin4 36 // button pin to trigger Bad Motivator lift mechanism
+// #define buttonPin5 39 // button pin to trigger Drink Server lift mechanism
 #pragma endregion
 
 #pragma region Timers
@@ -189,7 +188,11 @@ byte zapflashcount = 0;   // counter for dome zapper flashes
 byte zapperturncount = 0; // counter for dome zapper turns
 
 unsigned long bmpreviousMillis; // bad motivator store time
-long bminterval = 200; // time between led flashes
+long bminterval = 3000; //how long the bad motivator is raised
+long bmflashinterval = 200; // time between led flashes
+
+unsigned long lspreviousMillis; //lightsaber store time
+long lsinterval = 3000; //how long the lightsaber is raised
 
 unsigned long pturnpreviousMillis; // Periscope store time
 long pturninterval = 1200;  // time between posotional turns
@@ -201,8 +204,7 @@ byte lfturncount = 0; // count how many turns for the periscope
 const long lfledinterval = 500; // time between Lifeform scanner led flashes
 unsigned long lfledpreviousmillis = 0; // storage for led flashes
 
-unsigned long dspreviousMillis; // drink server store time
-long dsinterval = 4000; // time between drink server going up
+long overloadinterval = 5000; //time delay for overload action
 
 // button timer for debounce if required
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
@@ -243,27 +245,27 @@ int LFTopVal = LOW;
 int LFBotVal = LOW;
 
 // input buttons
-int buttonPushCounter = 0;    // counter for the number of button presses
-int buttonPushCounter1 = 0;   // counter for the number of button presses
-int buttonPushCounter2 = 0;   // counter for the number of button presses
-int buttonPushCounter3 = 0;   // counter for the number of button presses
-int buttonPushCounter4 = 0;   // counter for the number of button presses
-int buttonPushCounter5 = 0;   // counter for the number of button presses
+// int buttonPushCounter = 0;    // counter for the number of button presses
+// int buttonPushCounter1 = 0;   // counter for the number of button presses
+// int buttonPushCounter2 = 0;   // counter for the number of button presses
+// int buttonPushCounter3 = 0;   // counter for the number of button presses
+// int buttonPushCounter4 = 0;   // counter for the number of button presses
+// int buttonPushCounter5 = 0;   // counter for the number of button presses
 int ledState = LOW;           // the current state of the output pin
 int ledState1 = LOW;          // the current state of the output pin
 int ledState2 = LOW;          // the current state of the output pin
-int buttonState = 0;          // the current state of the button for Dome Zapper
-int buttonState1 = 0;         // the current state of the button for Periscope
-int buttonState2 = 0;         // the current state of the button for Lifeform Scanner
-int buttonState3 = 0;         // the current state of the button for Bad Motivator
-int buttonState4 = 0;         // the current state of the button for Lightsaber
-int buttonState5 = 0;         // the current state of the button for Drink Server
-int lastButtonState = 0;      // the previous reading from the input pin
-int lastButtonState1 = 0;     // the previous reading from the input pin
-int lastButtonState2 = 0;     // the previous reading from the input pin
-int lastButtonState3 = 0;     // the previous reading from the input pin
-int lastButtonState4 = 0;     // the previous reading from the input pin
-int lastButtonState5 = 0;     // the previous reading from the input pin
+// int buttonState = 0;          // the current state of the button for Dome Zapper
+// int buttonState1 = 0;         // the current state of the button for Periscope
+// int buttonState2 = 0;         // the current state of the button for Lifeform Scanner
+// int buttonState3 = 0;         // the current state of the button for Bad Motivator
+// int buttonState4 = 0;         // the current state of the button for Lightsaber
+// int buttonState5 = 0;         // the current state of the button for Drink Server
+// int lastButtonState = 0;      // the previous reading from the input pin
+// int lastButtonState1 = 0;     // the previous reading from the input pin
+// int lastButtonState2 = 0;     // the previous reading from the input pin
+// int lastButtonState3 = 0;     // the previous reading from the input pin
+// int lastButtonState4 = 0;     // the previous reading from the input pin
+// int lastButtonState5 = 0;     // the previous reading from the input pin
 #pragma endregion
 
 
@@ -302,12 +304,12 @@ void setup() {
   pinMode(LSBot, INPUT_PULLUP);
   pinMode(LFTop, INPUT_PULLUP);
   pinMode(LFBot, INPUT_PULLUP);
-  pinMode(buttonPin, INPUT_PULLUP);
-  pinMode(buttonPin1, INPUT_PULLUP);
-  pinMode(buttonPin2, INPUT_PULLUP);
-  pinMode(buttonPin3, INPUT_PULLUP);
-  pinMode(buttonPin4, INPUT_PULLUP);
-  pinMode(buttonPin5, INPUT_PULLUP);
+  // pinMode(buttonPin, INPUT_PULLUP);
+  // pinMode(buttonPin1, INPUT_PULLUP);
+  // pinMode(buttonPin2, INPUT_PULLUP);
+  // pinMode(buttonPin3, INPUT_PULLUP);
+  // pinMode(buttonPin4, INPUT_PULLUP);
+  // pinMode(buttonPin5, INPUT_PULLUP);
 
   // Write the motor pins low so they dont start on power up
   digitalWrite(PIN1, LOW);
@@ -335,8 +337,11 @@ void loop() {
   //reset timers
   currentMillis = millis();
   readlimits(); //read and store the limit switches values High or Low, function further down in code
-  receiveDataFromMainBoard(); //reads any data in serial
+  if (executingCommand = false && Serial.available() > 0) { //if not already executing a command and Serial data is available
+    receiveDataFromMainBoard(); //reads any data in serial
+  }
 
+  /* Button functionality
   buttonState = digitalRead(buttonPin); // main trigger for button inputs
   buttonState1 = digitalRead(buttonPin1); // main trigger for button inputs
   buttonState2 = digitalRead(buttonPin2); // main trigger for button inputs
@@ -471,14 +476,15 @@ void loop() {
     statelsup = LS_MOVE_TOP;
     statelsdown = LS_MOVE_BOT;
   }
+  */
 
   SerialOut(); // print to serial all values for testing
-  lastButtonState = buttonState; // reset the input button
-  lastButtonState1 = buttonState1; // reset the input button
-  lastButtonState2 = buttonState2; // reset the input button
-  lastButtonState3 = buttonState3; // reset the input button
-  lastButtonState4 = buttonState4; // reset the input button
-  lastButtonState5 = buttonState5; // reset the input button
+  // lastButtonState = buttonState; // reset the input button
+  // lastButtonState1 = buttonState1; // reset the input button
+  // lastButtonState2 = buttonState2; // reset the input button
+  // lastButtonState3 = buttonState3; // reset the input button
+  // lastButtonState4 = buttonState4; // reset the input button
+  // lastButtonState5 = buttonState5; // reset the input button
 }
 
 void receiveDataFromMainBoard(){
@@ -486,6 +492,7 @@ void receiveDataFromMainBoard(){
   char character;
 
   while (Serial.available() > 0){
+    executingCommand = true;
     character = Serial.read();
     if (character != '\n'){
       receivedChars[i] = character;
@@ -496,30 +503,117 @@ void receiveDataFromMainBoard(){
     } else {
       receivedChars[i] = '\0'; //terminate the string
       i = 0;
-      newData = true;
       processCommand(receivedChars);
     }
   }
-
-  // if (Serial.available() > 0){
-  //   character = Serial.read();
-  //   processCommand(character);
-  // }
 }
 
+//define actions for all possible commands from body to dome
 void processCommand(char* command){
-  //switch statement for each type of command
-  switch(domeCommand) {
-    case 0:
-      //do periscope command
-      break;
-    case 1:
-      //do lifeform scanner command
-      break;
-    default:
-      break;
+  if (command == "PERISCOPE") {
+    PeriscopeUp();
+    if (PTopVal == LOW && PBotVal == HIGH) {
+      PeriscopeTurn();
+    }
+    pwm0.setPWM(6, 0, PTURNSERVOMIN); //periscope turn to original lift position
+    PeriscopeDown();
+
+    statepup = P_MOVE_TOP;
+    statepdown = P_MOVE_BOT;
+    statept = 0;
+
+    // printAck(command);
+  } else if (command == "LIFEFORMSCANNER") {
+    LifeformUp();
+    if (currentMillis - lfledpreviousmillis >= lfledinterval) {
+      pwm0.setPWM(10, 4096 , 0); //Lifeform LED HIGH
+      lfledpreviousmillis = currentMillis;
+    }
+    else {
+      pwm0.setPWM(10, 0, 4096); //Lifeform LED LOW
+    }
+    if (LFTopVal == LOW && LFBotVal == HIGH) {
+      LFTurn();
+    }
+    pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn to original position
+    LifeformDown();
+
+    statelfup = LF_MOVE_TOP;
+    statelfdown = LF_MOVE_BOT;
+    statelft = 0;
+
+    // printAck(command);
+  } else if (command == "ZAPPER") {
+    DomeZapperUp();
+    if (ZTopVal == LOW && ZBotVal == HIGH) { //if zapper is raised
+      DomeZapper();
+    }
+    pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
+    pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
+    pwm0.setPWM(8, 0, 4096); // sets the led LOW
+    DomeZapperDown();
+
+    statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
+    statezapdown = ZAP_MOVE_BOT;
+    statez = 1;
+    statezl = 0;
+    
+    // printAck(command);
+  } else if (command == "BADMOTIVATOR") {
+    BadMotivatorUp();
+    pwm0.setPWM(9, 4096, 0); //BM led on
+    delay(bminterval); //wait for interval before lowering bad motivator
+    BadMotivatorDown();
+    pwm0.setPWM(9, 0, 4096); //BM led off
+
+    statebmup = BM_MOVE_TOP;
+    statebmdown = BM_MOVE_BOT;
+
+    // printAck(command);
+  } else if (command == "LIGHTSABER") {
+    LightsaberUp();
+    delay(lsinterval); //wait for interval before lowering lightsaber
+    LightsaberDown();
+
+    statelsup = LS_MOVE_TOP;
+    statelsdown = LS_MOVE_BOT;
+
+    // printAck(command);
+  } else if (command == "OVERLOAD") {
+    //open all panels
+    //raise all mechanisms
+    //magic panel on
+    //holos red
+    //play scream sound
+    delay(overloadinterval);
+    //holos normal
+    //magic panel off
+    //lower all mechanisms
+    //close all panels
+
+    printAck(command);
+  } else if (command == "PANELWAVE") {
+    //open panels in sequence
+    printAck(command);
+  } else if (command == "TOGGLEMAGICPANEL") {
+    //toggle magic panel on/off
+    printAck(command);
+  } else if (command == "TOGGLEHOLOS") {
+    //toggle holos on/off
+    printAck(command);
+  } else {
+    Serial.print("*** Unknown command");
+    executingCommand = false;
+    return;
   }
-  // Serial.println("Command " + command + " executed.");  //print ACK to serial
+  printAck(command);
+  executingCommand = false; //finished executing command
+}
+
+void printAck(char* command) {
+  Serial.print("*** ");
+  Serial.print(command);
+  Serial.print(" command executed\n");  //print ACK to serial
 }
 
 
@@ -648,6 +742,7 @@ void PeriscopeUp() { //button tirggered Lift periscope, flash lights, rotate bac
       break;
     case P_TOP:
       if (PTopVal == LOW) {
+        pwm0.setPWM(11, 4096, 0); // sets the led HIGH from the PCA9685
         digitalWrite(PIN1, LOW); //turn the motor off
         digitalWrite(PIN2, LOW); //turn the motor off
       }
@@ -660,6 +755,7 @@ void PeriscopeDown() { // this function lowers the periscope
   switch (statepdown) {
     case P_MOVE_BOT:
       if (PBotVal != LOW) {
+        pwm0.setPWM(11, 0, 4096); // sets the led LOW from the PCA9685
         digitalWrite(PIN1, LOW); //turn the dc motor on
         digitalWrite(PIN2, HIGH);
         statepdown = P_BOT;
@@ -667,6 +763,7 @@ void PeriscopeDown() { // this function lowers the periscope
       break;
     case P_BOT:
       if (PBotVal == LOW) {
+        pwm0.setPWM(11, 0, 4096); // sets the led LOW from the PCA9685
         digitalWrite(PIN1, LOW); //turn the dc motor on
         digitalWrite(PIN2, LOW);
       }
@@ -896,6 +993,7 @@ void servoSetup() {
   pwm0.setPWM(8, 0, 4096); //Zapper LED low
   pwm0.setPWM(9, 0, 4096); //Bad Motiviator LED low
   pwm0.setPWM(10, 0, 4096); //Lifeform LED low
+  pwm0.setPWM(11, 0, 4096); //Periscope LED low
 
   pwm1.setPWM(0,LSSERVOMIN,LSSERVOMAX); //PP1
   pwm1.setPWM(1,BMSERVOMIN,BMSERVOMAX); //PP5
@@ -920,22 +1018,22 @@ void servoSetup() {
 
 //Function to display values for testing, uncheck any values you don't want to or do want to see
 void SerialOut() {
-  Serial.println("Button Push Counters");
-    Serial.println("B0\tB1\tB2\tB3\tB4\tB5");
-    Serial.print(buttonPushCounter); Serial.print("\t");
-    Serial.print(buttonPushCounter1); Serial.print("\t");
-    Serial.print(buttonPushCounter2); Serial.print("\t");
-    Serial.print(buttonPushCounter3); Serial.print("\t");
-    Serial.print(buttonPushCounter4); Serial.print("\t");
-    Serial.print(buttonPushCounter5); Serial.print("\n\n");
-  Serial.println("Button States");
-    Serial.println("St0\tSt1\tSt2\tSt3\tSt4\tSt5");
-    Serial.print(buttonState); Serial.print("\t");
-    Serial.print(buttonState1); Serial.print("\t");
-    Serial.print(buttonState2); Serial.print("\t");
-    Serial.print(buttonState3); Serial.print("\t");
-    Serial.print(buttonState4); Serial.print("\t");
-    Serial.print(buttonState5); Serial.print("\n\n");
+  // Serial.println("Button Push Counters");
+  //   Serial.println("B0\tB1\tB2\tB3\tB4\tB5");
+  //   Serial.print(buttonPushCounter); Serial.print("\t");
+  //   Serial.print(buttonPushCounter1); Serial.print("\t");
+  //   Serial.print(buttonPushCounter2); Serial.print("\t");
+  //   Serial.print(buttonPushCounter3); Serial.print("\t");
+  //   Serial.print(buttonPushCounter4); Serial.print("\t");
+  //   Serial.print(buttonPushCounter5); Serial.print("\n\n");
+  // Serial.println("Button States");
+  //   Serial.println("St0\tSt1\tSt2\tSt3\tSt4\tSt5");
+  //   Serial.print(buttonState); Serial.print("\t");
+  //   Serial.print(buttonState1); Serial.print("\t");
+  //   Serial.print(buttonState2); Serial.print("\t");
+  //   Serial.print(buttonState3); Serial.print("\t");
+  //   Serial.print(buttonState4); Serial.print("\t");
+  //   Serial.print(buttonState5); Serial.print("\n\n");
   Serial.println("Limit Switch Values");
     Serial.println("    \tP\tBM\tZ\tLS\tLF");
     Serial.print("Top:\t"); 
