@@ -28,7 +28,6 @@
 
 //Libraries to include
 #include <Wire.h>
-#include <Communication.h>
 //#include <VarSpeedServo.h>
 #include <math.h>
 //#include <EnableInterrupt.h>
@@ -41,9 +40,17 @@ Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x42);
 
 // Define constants and values to stay the same
 #define SERIAL_PORT_SPEED 57600 // Define the port output serial communication speed
+#define PWM_FREQ 50
 
 // our servo # counter
 uint8_t servonum = 0;
+
+const byte numChars = 32; //character limit for Serial command
+char receivedChars[numChars]; //char array to store Serial command
+boolean newData = false;
+static enum {Periscope = 0,
+             LifeformScanner = 1
+            } domeCommand; //possible commands from body to dome
 
 #pragma region AppSettings
 // Set servo channels (0-15 per board)
@@ -202,6 +209,7 @@ unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
 #pragma endregion
 
+#pragma region States
 // sates to select from the different case functions
 static enum {ZAP_MOVE_TOP, ZAP_TOP} statezapup; //zapper up
 static enum {ZAP_MOVE_BOT, ZAP_BOT} statezapdown; // zapper down
@@ -256,16 +264,19 @@ int lastButtonState2 = 0;     // the previous reading from the input pin
 int lastButtonState3 = 0;     // the previous reading from the input pin
 int lastButtonState4 = 0;     // the previous reading from the input pin
 int lastButtonState5 = 0;     // the previous reading from the input pin
+#pragma endregion
 
 
 void setup() {
-  Serial.begin(SERIAL_PORT_SPEED);// serial communicationpwm.begin();
+  Serial.begin(SERIAL_PORT_SPEED);// serial communication
+  Serial.println("***Dome board ready***\n");
+
   pwm0.begin();
-  pwm0.setPWMFreq(50); //  standard for analog servos
+  pwm0.setPWMFreq(PWM_FREQ); //  standard for analog servos
   pwm1.begin();
-  pwm1.setPWMFreq(50);
+  pwm1.setPWMFreq(PWM_FREQ);
   pwm2.begin();
-  pwm2.setPWMFreq(50);
+  pwm2.setPWMFreq(PWM_FREQ);
 
   //output pins
   pinMode(PIN1, OUTPUT);
@@ -324,6 +335,8 @@ void loop() {
   //reset timers
   currentMillis = millis();
   readlimits(); //read and store the limit switches values High or Low, function further down in code
+  receiveDataFromMainBoard(); //reads any data in serial
+
   buttonState = digitalRead(buttonPin); // main trigger for button inputs
   buttonState1 = digitalRead(buttonPin1); // main trigger for button inputs
   buttonState2 = digitalRead(buttonPin2); // main trigger for button inputs
@@ -466,6 +479,47 @@ void loop() {
   lastButtonState3 = buttonState3; // reset the input button
   lastButtonState4 = buttonState4; // reset the input button
   lastButtonState5 = buttonState5; // reset the input button
+}
+
+void receiveDataFromMainBoard(){
+  static byte i = 0;
+  char character;
+
+  while (Serial.available() > 0){
+    character = Serial.read();
+    if (character != '\n'){
+      receivedChars[i] = character;
+      i++;
+      if (i >= numChars) {
+        i = numChars - 1;
+      }
+    } else {
+      receivedChars[i] = '\0'; //terminate the string
+      i = 0;
+      newData = true;
+      processCommand(receivedChars);
+    }
+  }
+
+  // if (Serial.available() > 0){
+  //   character = Serial.read();
+  //   processCommand(character);
+  // }
+}
+
+void processCommand(char* command){
+  //switch statement for each type of command
+  switch(domeCommand) {
+    case 0:
+      //do periscope command
+      break;
+    case 1:
+      //do lifeform scanner command
+      break;
+    default:
+      break;
+  }
+  // Serial.println("Command " + command + " executed.");  //print ACK to serial
 }
 
 
