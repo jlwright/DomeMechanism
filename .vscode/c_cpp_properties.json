@@ -19,7 +19,12 @@
                 "C:\\Users\\JW\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\cores\\arduino",
                 "C:\\Users\\JW\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\variants\\mega",
                 "C:\\Users\\JW\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\libraries\\Wire\\src",
-                "C:\\Users\\JW\\Documents\\R2 builders\\SHADOW\\SHADOW\\libraries\\Adafruit_PWMServoDriver",
+                "C:\\Users\\JW\\Documents\\Arduino\\libraries\\VarSpeedServo",
+                "C:\\Users\\JW\\Documents\\Arduino\\libraries\\EnableInterrupt",
+                "C:\\Users\\JW\\Documents\\Arduino\\libraries\\Adafruit_PWM_Servo_Driver_Library",
+                "C:\\Users\\JW\\Documents\\Arduino\\libraries\\Adafruit_BusIO",
+                "C:\\Users\\JW\\Documents\\Arduino\\libraries\\Arduino",
+                "C:\\Users\\JW\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\libraries\\SPI\\src",
                 "c:\\users\\jw\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\lib\\gcc\\avr\\7.3.0\\include",
                 "c:\\users\\jw\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\lib\\gcc\\avr\\7.3.0\\include-fixed",
                 "c:\\users\\jw\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\avr\\include"

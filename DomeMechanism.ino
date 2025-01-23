@@ -28,9 +28,9 @@
 
 //Libraries to include
 #include <Wire.h>
-//#include <VarSpeedServo.h>
+#include <VarSpeedServo.h>
 #include <math.h>
-//#include <EnableInterrupt.h>
+#include <EnableInterrupt.h>
 #include <Adafruit_PWMServoDriver.h>
 
 #pragma region GlobalVariables
