@@ -28,9 +28,9 @@
 
 //Libraries to include
 #include <Wire.h>
-#include <VarSpeedServo.h>
+//#include <VarSpeedServo.h>
 #include <math.h>
-#include <EnableInterrupt.h>
+// #include <EnableInterrupt.h>
 #include <Adafruit_PWMServoDriver.h>
 
 #pragma region GlobalVariables
@@ -42,14 +42,12 @@ Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x42);
 // our servo # counter
 uint8_t servonum = 0;
 
-const byte numChars = 32; //character limit for Serial command
-char receivedChars[numChars]; //char array to store Serial command
 boolean executingCommand = false; //tracks if a command is being executed
 #pragma endregion
 
 #pragma region AppSettings
 // Define constants and values to stay the same
-#define SERIAL_PORT_SPEED 57600 // Define the port output serial communication speed
+#define SERIAL_PORT_SPEED 115200 // Define the port output serial communication speed
 #define PWM_FREQ 50
 
 // Set servo channels (0-15 per board)
@@ -280,6 +278,7 @@ void setup() {
   pwm2.begin();
   pwm2.setPWMFreq(PWM_FREQ);
 
+  #pragma region PinSetup
   //output pins
   pinMode(PIN1, OUTPUT);
   pinMode(PIN2, OUTPUT);
@@ -291,7 +290,7 @@ void setup() {
   pinMode(LSIN2, OUTPUT);
   pinMode(LFIN1, OUTPUT);
   pinMode(LFIN2, OUTPUT);
-  //pinMode(ledPin, OUTPUT); // led pin on the arduino for testing
+  // pinMode(ledPin, OUTPUT); // led pin on the arduino for testing
   
   // input pins
   pinMode(PTop, INPUT_PULLUP); // using a limit switch, pin goes to Normally Open and Common goes to ground, value reads LOW when the switch is closed
@@ -324,20 +323,22 @@ void setup() {
   digitalWrite(LFIN2, LOW);
 
   //digitalWrite(ledPin, LOW); // set the led off
+  #pragma endregion
 
   //Set the servos to their start positions
   servoSetup(); // view function and end of code
-
+  // SerialOut();
   delay(1000); // wait for everything to get to their positions on power up
 }
 
 
 // Main Code here
 void loop() {
+  // Serial.println("in loop()");
   //reset timers
   currentMillis = millis();
   readlimits(); //read and store the limit switches values High or Low, function further down in code
-  if (executingCommand = false && Serial.available() > 0) { //if not already executing a command and Serial data is available
+  if (!executingCommand && Serial.available() > 0) { //if not already executing a command and Serial data is available
     receiveDataFromMainBoard(); //reads any data in serial
   }
 
@@ -478,7 +479,7 @@ void loop() {
   }
   */
 
-  SerialOut(); // print to serial all values for testing
+  // SerialOut(); // print to serial all values for testing
   // lastButtonState = buttonState; // reset the input button
   // lastButtonState1 = buttonState1; // reset the input button
   // lastButtonState2 = buttonState2; // reset the input button
@@ -488,29 +489,20 @@ void loop() {
 }
 
 void receiveDataFromMainBoard(){
-  static byte i = 0;
-  char character;
-
-  while (Serial.available() > 0){
+  // Serial.println("in receiveDataFromMainBoard()");
+  String command = Serial.readString(); //pull string from Serial
+  if (command.startsWith("CMD",0)) {
     executingCommand = true;
-    character = Serial.read();
-    if (character != '\n'){
-      receivedChars[i] = character;
-      i++;
-      if (i >= numChars) {
-        i = numChars - 1;
-      }
-    } else {
-      receivedChars[i] = '\0'; //terminate the string
-      i = 0;
-      processCommand(receivedChars);
-    }
+    processCommand(command);
+  } else {
+    Serial.println("This is not a dome command");
   }
 }
 
 //define actions for all possible commands from body to dome
-void processCommand(char* command){
-  if (command == "PERISCOPE") {
+void processCommand(String command){
+  // Serial.println("in processCommand()");
+  if (command == "CMD:PERISCOPE") {
     PeriscopeUp();
     if (PTopVal == LOW && PBotVal == HIGH) {
       PeriscopeTurn();
@@ -521,9 +513,7 @@ void processCommand(char* command){
     statepup = P_MOVE_TOP;
     statepdown = P_MOVE_BOT;
     statept = 0;
-
-    // printAck(command);
-  } else if (command == "LIFEFORMSCANNER") {
+  } else if (command == "CMD:LIFEFORMSCANNER") {
     LifeformUp();
     if (currentMillis - lfledpreviousmillis >= lfledinterval) {
       pwm0.setPWM(10, 4096 , 0); //Lifeform LED HIGH
@@ -541,9 +531,7 @@ void processCommand(char* command){
     statelfup = LF_MOVE_TOP;
     statelfdown = LF_MOVE_BOT;
     statelft = 0;
-
-    // printAck(command);
-  } else if (command == "ZAPPER") {
+  } else if (command == "CMD:ZAPPER") {
     DomeZapperUp();
     if (ZTopVal == LOW && ZBotVal == HIGH) { //if zapper is raised
       DomeZapper();
@@ -557,9 +545,7 @@ void processCommand(char* command){
     statezapdown = ZAP_MOVE_BOT;
     statez = 1;
     statezl = 0;
-    
-    // printAck(command);
-  } else if (command == "BADMOTIVATOR") {
+  } else if (command == "CMD:BADMOTIVATOR") {
     BadMotivatorUp();
     pwm0.setPWM(9, 4096, 0); //BM led on
     delay(bminterval); //wait for interval before lowering bad motivator
@@ -568,18 +554,14 @@ void processCommand(char* command){
 
     statebmup = BM_MOVE_TOP;
     statebmdown = BM_MOVE_BOT;
-
-    // printAck(command);
-  } else if (command == "LIGHTSABER") {
+  } else if (command == "CMD:LIGHTSABER") {
     LightsaberUp();
     delay(lsinterval); //wait for interval before lowering lightsaber
     LightsaberDown();
 
     statelsup = LS_MOVE_TOP;
     statelsdown = LS_MOVE_BOT;
-
-    // printAck(command);
-  } else if (command == "OVERLOAD") {
+  } else if (command == "CMD:OVERLOAD") {
     //open all panels
     //raise all mechanisms
     //magic panel on
@@ -590,19 +572,14 @@ void processCommand(char* command){
     //magic panel off
     //lower all mechanisms
     //close all panels
-
-    printAck(command);
-  } else if (command == "PANELWAVE") {
+  } else if (command == "CMD:PANELWAVE") {
     //open panels in sequence
-    printAck(command);
-  } else if (command == "TOGGLEMAGICPANEL") {
+  } else if (command == "CMD:TOGGLEMAGICPANEL") {
     //toggle magic panel on/off
-    printAck(command);
-  } else if (command == "TOGGLEHOLOS") {
+  } else if (command == "CMD:TOGGLEHOLOS") {
     //toggle holos on/off
-    printAck(command);
   } else {
-    Serial.print("*** Unknown command");
+    Serial.println("*** Unknown dome command");
     executingCommand = false;
     return;
   }
@@ -610,7 +587,8 @@ void processCommand(char* command){
   executingCommand = false; //finished executing command
 }
 
-void printAck(char* command) {
+void printAck(String command) {
+  // Serial.println("in printAck()");
   Serial.print("*** ");
   Serial.print(command);
   Serial.print(" command executed\n");  //print ACK to serial
@@ -985,6 +963,7 @@ void readlimits() { //this function reads all the limit swtiches and stores thei
 }
 
 void servoSetup() {
+  // Serial.println("in servoSetup()");
   //ServoStartPositions();
   pwm0.setPWM(4, 0, ZAPSERVOMIN); //Zapper arm
   pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //Zapper arm turn
@@ -1014,10 +993,12 @@ void servoSetup() {
   pwm2.setPWM(7,HP2_YMIN,HP2_YMAX); //HP2_Y
   pwm2.setPWM(8,HP3_XMIN,HP3_XMAX); //HP3_X
   pwm2.setPWM(9,HP3_YMIN,HP3_YMAX); //HP3_Y
+  // Serial.println("done setting up pwm servos");
 }
 
 //Function to display values for testing, uncheck any values you don't want to or do want to see
 void SerialOut() {
+  Serial.println("------------------------------------------"),
   // Serial.println("Button Push Counters");
   //   Serial.println("B0\tB1\tB2\tB3\tB4\tB5");
   //   Serial.print(buttonPushCounter); Serial.print("\t");
@@ -1048,6 +1029,7 @@ void SerialOut() {
       Serial.print(ZBotVal); Serial.print("\t"); 
       Serial.print(LSBotVal); Serial.print("\t"); 
       Serial.print(LFBotVal); Serial.print("\n");
+  Serial.println("------------------------------------------\n");
   
 //  Serial.print("B0:"); Serial.print(buttonPushCounter); Serial.print("\t");
 //  Serial.print("B1:"); Serial.print(buttonPushCounter1); Serial.print("\t");
@@ -1073,7 +1055,7 @@ void SerialOut() {
 //  Serial.print("LSTop:"); Serial.print(LSTopVal); Serial.print("\t");
 //  //Serial.print("DSBot:"); Serial.print(DSBotVal); Serial.print("\t");
 //  //Serial.print("DSTop:"); Serial.print(DSTopVal); Serial.print("\t");
-//  //Serial.print("statezl:"); Serial.print(statezl); Serial.print("\t");
+//  Serial.print("statezl:"); Serial.print(statezl); Serial.print("\t");
 //  Serial.print("Millis:"); Serial.print(currentMillis); Serial.println("\t");
 //  Serial.print("-------------------------------------------\n\n");
 }

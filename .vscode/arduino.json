@@ -2,5 +2,6 @@
     "configuration": "cpu=atmega2560",
     "board": "arduino:avr:mega",
     "sketch": "DomeMechanism.ino",
-    "programmer": "arduinoisp"
+    "programmer": "arduinoisp",
+    "port": "COM9"
 }
