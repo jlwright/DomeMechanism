@@ -32,6 +32,7 @@
 #include <math.h>
 // #include <EnableInterrupt.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <DomeCommandEnums.h>
 
 #pragma region GlobalVariables
 //Call boards for i2c
@@ -489,105 +490,109 @@ void loop() {
 }
 
 void receiveDataFromMainBoard(){
-  // Serial.println("in receiveDataFromMainBoard()");
   String command = Serial.readString(); //pull string from Serial
-  if (command.startsWith("CMD",0)) {
+  if (command.startsWith("CMD:", 0)) {
     executingCommand = true;
-    processCommand(command);
+    // command = command.substring(4); // remove "CMD:" from the string
+    processCommand((int)command[command.length() - 1]); // get last char of command and parse to int
   } else {
     Serial.println("This is not a dome command");
   }
 }
 
-//define actions for all possible commands from body to dome
-void processCommand(String command){
+void processCommand(int command){
   // Serial.println("in processCommand()");
-  if (command == "CMD:PERISCOPE") {
-    PeriscopeUp();
-    if (PTopVal == LOW && PBotVal == HIGH) {
-      PeriscopeTurn();
-    }
-    pwm0.setPWM(6, 0, PTURNSERVOMIN); //periscope turn to original lift position
-    PeriscopeDown();
+  switch (command) {
+    case PERISCOPE:
+      PeriscopeUp();
+      if (PTopVal == LOW && PBotVal == HIGH) {
+        PeriscopeTurn();
+      }
+      pwm0.setPWM(6, 0, PTURNSERVOMIN); //periscope turn to original lift position
+      PeriscopeDown();
 
-    statepup = P_MOVE_TOP;
-    statepdown = P_MOVE_BOT;
-    statept = 0;
-  } else if (command == "CMD:LIFEFORMSCANNER") {
-    LifeformUp();
-    if (currentMillis - lfledpreviousmillis >= lfledinterval) {
-      pwm0.setPWM(10, 4096 , 0); //Lifeform LED HIGH
-      lfledpreviousmillis = currentMillis;
-    }
-    else {
-      pwm0.setPWM(10, 0, 4096); //Lifeform LED LOW
-    }
-    if (LFTopVal == LOW && LFBotVal == HIGH) {
-      LFTurn();
-    }
-    pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn to original position
-    LifeformDown();
+      statepup = P_MOVE_TOP;
+      statepdown = P_MOVE_BOT;
+      statept = 0;
+    case LIFEFORMSCANNER:
+      LifeformUp();
+      if (currentMillis - lfledpreviousmillis >= lfledinterval) {
+        pwm0.setPWM(10, 4096 , 0); //Lifeform LED HIGH
+        lfledpreviousmillis = currentMillis;
+      }
+      else {
+        pwm0.setPWM(10, 0, 4096); //Lifeform LED LOW
+      }
+      if (LFTopVal == LOW && LFBotVal == HIGH) {
+        LFTurn();
+      }
+      pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn to original position
+      LifeformDown();
 
-    statelfup = LF_MOVE_TOP;
-    statelfdown = LF_MOVE_BOT;
-    statelft = 0;
-  } else if (command == "CMD:ZAPPER") {
-    DomeZapperUp();
-    if (ZTopVal == LOW && ZBotVal == HIGH) { //if zapper is raised
-      DomeZapper();
-    }
-    pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
-    pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
-    pwm0.setPWM(8, 0, 4096); // sets the led LOW
-    DomeZapperDown();
+      statelfup = LF_MOVE_TOP;
+      statelfdown = LF_MOVE_BOT;
+      statelft = 0;
+    case ZAPPER:
+      DomeZapperUp();
+      if (ZTopVal == LOW && ZBotVal == HIGH) { //if zapper is raised
+        DomeZapper();
+      }
+      pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
+      pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
+      pwm0.setPWM(8, 0, 4096); // sets the led LOW
+      DomeZapperDown();
 
-    statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
-    statezapdown = ZAP_MOVE_BOT;
-    statez = 1;
-    statezl = 0;
-  } else if (command == "CMD:BADMOTIVATOR") {
-    BadMotivatorUp();
-    pwm0.setPWM(9, 4096, 0); //BM led on
-    delay(bminterval); //wait for interval before lowering bad motivator
-    BadMotivatorDown();
-    pwm0.setPWM(9, 0, 4096); //BM led off
+      statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
+      statezapdown = ZAP_MOVE_BOT;
+      statez = 1;
+      statezl = 0;
+    case BADMOTIVATOR:
+      BadMotivatorUp();
+      pwm0.setPWM(9, 4096, 0); //BM led on
+      delay(bminterval); //wait for interval before lowering bad motivator
+      BadMotivatorDown();
+      pwm0.setPWM(9, 0, 4096); //BM led off
 
-    statebmup = BM_MOVE_TOP;
-    statebmdown = BM_MOVE_BOT;
-  } else if (command == "CMD:LIGHTSABER") {
-    LightsaberUp();
-    delay(lsinterval); //wait for interval before lowering lightsaber
-    LightsaberDown();
+      statebmup = BM_MOVE_TOP;
+      statebmdown = BM_MOVE_BOT;
+    case LIGHTSABER:
+      LightsaberUp();
+      delay(lsinterval); //wait for interval before lowering lightsaber
+      LightsaberDown();
 
-    statelsup = LS_MOVE_TOP;
-    statelsdown = LS_MOVE_BOT;
-  } else if (command == "CMD:OVERLOAD") {
-    //open all panels
-    //raise all mechanisms
-    //magic panel on
-    //holos red
-    //play scream sound
-    delay(overloadinterval);
-    //holos normal
-    //magic panel off
-    //lower all mechanisms
-    //close all panels
-  } else if (command == "CMD:PANELWAVE") {
-    //open panels in sequence
-  } else if (command == "CMD:TOGGLEMAGICPANEL") {
-    //toggle magic panel on/off
-  } else if (command == "CMD:TOGGLEHOLOS") {
-    //toggle holos on/off
-  } else {
-    Serial.println("*** Unknown dome command");
-    executingCommand = false;
-    return;
+      statelsup = LS_MOVE_TOP;
+      statelsdown = LS_MOVE_BOT;
+    case OVERLOAD:
+      //open all panels
+      //raise all mechanisms
+      //magic panel on
+      //holos red
+      //play scream sound
+      delay(overloadinterval);
+      //holos normal
+      //magic panel off
+      //lower all mechanisms
+      //close all panels
+    case PANELWAVE:
+      //open panels in sequence
+    case PANELDANCE:
+      //run panel sequence with sound
+    case TOGGLEMAGICPANEL:
+      //toggle magic panel on/off
+    case TOGGLEHOLOS:
+      //toggle holos on/off
+    case TOGGLEHOLOAUTOMOVE:
+      //toggle holo auto movement
+    default:
+      Serial.println("*** Unknown dome command");
+      executingCommand = false;
+      return;
   }
-  printAck(command);
+  printAck(DomeCommands(command));
   executingCommand = false; //finished executing command
 }
 
-void printAck(String command) {
+void printAck(DomeCommands command) {
   // Serial.println("in printAck()");
   Serial.print("*** ");
   Serial.print(command);
