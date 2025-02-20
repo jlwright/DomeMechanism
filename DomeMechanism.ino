@@ -26,12 +26,16 @@
 // DS = Drink Server
 */
 
+#pragma region Includes
 //Libraries to include
 #include <Wire.h>
 //#include <VarSpeedServo.h>
 #include <math.h>
 // #include <EnableInterrupt.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <Adafruit_NeoPixel.h>
+#include <string.h>
+#pragma endregion
 
 #pragma region GlobalVariables
 //Call boards for i2c
@@ -39,10 +43,46 @@ Adafruit_PWMServoDriver pwm0 = Adafruit_PWMServoDriver(0x40);
 Adafruit_PWMServoDriver pwm1 = Adafruit_PWMServoDriver(0x41);
 Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x42);
 
-// our servo # counter
 uint8_t servonum = 0;
-
 boolean executingCommand = false; //tracks if a command is being executed
+#pragma endregion
+
+#pragma region PinSettings
+// ---------------------------------------------------------------------------------------
+//                          Motor Driver Pins
+// ---------------------------------------------------------------------------------------
+#define PIN1 2 //Periscope Motor Driver IN1
+#define PIN2 3 //Periscope Motor Driver IN2
+#define BMIN1 4 //Bad Motivator Motor Driver IN1
+#define BMIN2 5 //Bad Motivator Motor Driver IN2
+#define ZIN1 6 //Zapper Motor Driver IN1
+#define ZIN2 7 //Zapper Motor Driver IN2
+#define LSIN1 8 //Lightsaber Motor Driver IN1
+#define LSIN2 9 //Lightsaber Motor Driver IN2
+#define LFIN1 10 //Lifeform Motor Driver IN1
+#define LFIN2 11 //Lifeform Motor Driver IN2\
+
+// ---------------------------------------------------------------------------------------
+//                          Limit Switch Pins
+// ---------------------------------------------------------------------------------------
+#define PTop 22 //Periscope top limit switch
+#define PBot 23 //Periscope bottom limit switch
+#define BMTop 24 //Bad Motivator top limit switch
+#define BMBot 25 //Bad Motivator bottom limit switch
+#define ZTop 26 //Zapper top limit switch
+#define ZBot 27 //Zapper bottom limit switch
+#define LSTop 28 //Lightsaber top limit switch
+#define LSBot 29 //Lightsaber bottom limit switch
+#define LFTop 30 //Lifeform top limit switch
+#define LFBot 31 //Lifeform bottom limit switch
+
+// These pins are connected to ground to trigger, this can be done with a push button or code added later to make this remote from another source
+// #define buttonPin 38 // button pin to trigger dome zapper lift mechanism
+// #define buttonPin1 34 // button pin to trigger periscope lift mechanism
+// #define buttonPin2 37 // button pin to trigger Lifeform scanner lift mechanism
+// #define buttonPin3 35 // button pin to trigger Lightsaber lift mechanism
+// #define buttonPin4 36 // button pin to trigger Bad Motivator lift mechanism
+// #define buttonPin5 39 // button pin to trigger Drink Server lift mechanism
 #pragma endregion
 
 #pragma region AppSettings
@@ -50,8 +90,62 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define SERIAL_PORT_SPEED 115200 // Define the port output serial communication speed
 #define PWM_FREQ 50
 
-// Set servo channels (0-15 per board)
-//pwm0 (0x40)
+// ---------------------------------------------------------------------------------------
+//                          HP/MP Settings
+// ---------------------------------------------------------------------------------------
+#define NEO_PIXEL
+
+#ifdef NEO_PIXEL
+  #define PIN_HP 6 // Which pin on the Arduino is connected to the NeoPixels?
+  #define NUMPIXELS_HP 21 // Number of pixels in the ring
+  #define PIN_MP 7 // Pin connected to Magic Panel
+  #define NUMPIXELS_MP 40 // Number of pixels in the magic panel
+  Adafruit_NeoPixel pixelsHP(NUMPIXELS_HP, PIN_HP, NEO_GRB + NEO_KHZ800);
+  Adafruit_NeoPixel pixelsMP(NUMPIXELS_MP, PIN_MP, NEO_GRB + NEO_KHZ800);
+
+  // Color settings for pixels (R,G,B)
+  #define RED (255,0,0,0)
+  #define GREEN (0,255,0,0)
+  #define BLUE (0,0,255,0)
+  #define WHITE (0,0,0,255)
+  #define LIGHTBLUE (0,0,40,255)
+  #define PURPLE (255,255,0,0)
+  #define PINK (40,0,0,255)
+
+  //TODO: change this to array
+  // map<string, Color> colorMap = {
+  //   {"RED", RED},
+  //   {"GREEN", GREEN},
+  //   {"BLUE", BLUE},
+  //   {"WHITE", WHITE},
+  //   {"LIGHTBLUE", LIGHTBLUE},
+  //   {"PURPLE", PURPLE},
+  //   {"PINK", PINK}
+  // };
+
+  const char* colorNames[] = {
+    "RED",
+    "GREEN",
+    "BLUE",
+    "WHITE",
+    "LIGHTBLUE",
+    "PURPLE",
+    "PINK"
+  };
+
+  int holoBrightness = 5; // Brightness of holos
+  uint32_t holoColor = WHITE; // default holo color to WHITE
+  boolean holosOn = true; // default holos to on
+
+  int magicPanelBrightness = 5; // brightness of magic panel
+  uint32_t magicPanelColor = RED; // default magic panel color
+  boolean magicPanelOn = false; // defautl magic panel to off
+#endif
+
+#pragma endregion
+
+#pragma region ServoSettings
+// //pwm0 (0x40)
 #define ZAPCHANNEL 4
 #define ZAPTURNCHANNEL 5
 #define PTURNCHANNEL 6
@@ -59,7 +153,7 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define ZLEDCHANNEL 8
 #define BMLEDCHANNEL 9
 #define LFLEDCHANNEL 10
-//pwm1 (0x41)
+// //pwm1 (0x41)
 #define LSPPCHANNEL 0 //PP1
 #define BMPPCHANNEL 1 //PP5
 #define ZPPCHANNEL 2 //PP6
@@ -68,7 +162,7 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define P13CHANNEL 5
 #define HP1XCHANNEL 6
 #define HP1YCHANNEL 7
-//pwm2 (0x42)
+// //pwm2 (0x42)
 #define LFPPCHANNEL 0 //PP2
 #define P1CHANNEL 1
 #define P2CHANNEL 2
@@ -89,7 +183,7 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define LSSERVOMAX  450 // adjust for pie panel position
 #define LFSERVOMIN  300 // adjust for pie panel position (150 - 600)
 #define LFSERVOMAX  450 // adjust for pie panel position
-
+//
 // Servo end points for dome mechanisms
 #define ZAPSERVOMIN  350 // adjust Dome Zapper Down position (150 - 600)
 #define ZAPSERVOMAX  180 // adjust Dome Zapper Up position
@@ -99,7 +193,7 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define ZAPTURNSERVOMAX  200 // adjust Dome Zapper Turn position
 #define LFTURNSERVOMIN  180 // adjust Dome LF Turn position (150 - 600)
 #define LFTURNSERVOMAX  500 // adjust Dome LF Turn position
-
+//
 // Servo end points for dome panels
 #define P1MIN 300 // adjust for panel position (150 - 600)
 #define P1MAX 450
@@ -117,7 +211,7 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define P11MIN 450
 #define P13MAX 300
 #define P13MIN 450
-
+//
 //Servo end points for holo projectors
 #define HP1_XMIN 300
 #define HP1_XMAX 450
@@ -131,44 +225,70 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define HP3_XMAX 450
 #define HP3_YMIN 300
 #define HP3_YMAX 450
-
+//
 //LED high low settings below, connected to the Gnd and Signal line on the PCA9685
-#define ZLEDSERVOMIN  200 // adjust Dome Zapper Turn position (150 - 600)
-#define ZLEDSERVOMAX  500 // adjust Dome Zapper Turn position
-#define BMLEDSERVOMIN  200 // adjust Dome Zapper Turn position (150 - 600)
-#define BMLEDSERVOMAX  500 // adjust Dome Zapper Turn position
+#define ZLEDSERVOMIN  200
+#define ZLEDSERVOMAX  500 
+#define BMLEDSERVOMIN  200
+#define BMLEDSERVOMAX  500
+#define LFLEDSERVOMIN 200
+#define LFLEDSERVOMAX 500
 
-//Motor drivers
-#define PIN1 2 //Periscope Motor Driver IN1
-#define PIN2 3 //Periscope Motor Driver IN2
-#define BMIN1 4 //Bad Motivator Motor Driver IN1
-#define BMIN2 5 //Bad Motivator Motor Driver IN2
-#define ZIN1 6 //Zapper Motor Driver IN1
-#define ZIN2 7 //Zapper Motor Driver IN2
-#define LSIN1 8 //Lightsaber Motor Driver IN1
-#define LSIN2 9 //Lightsaber Motor Driver IN2
-#define LFIN1 10 //Lifeform Motor Driver IN1
-#define LFIN2 11 //Lifeform Motor Driver IN2\
+//indicies for array
+#define ZAP 0
+#define ZAPTURN 1
+#define PTURN 2
+#define LFTURN 3
+#define ZLED 4
+#define BMLED 5
+#define LFLED 6
+#define PP1 7
+#define PP5 8
+#define PP6 9
+#define P10 10
+#define P11 11
+#define P13 12
+#define HP1_X 13
+#define HP1_Y 14
+#define PP2 15
+#define P1 16
+#define P2 17
+#define P3 18
+#define P4 19
+#define P7 20
+#define HP2_X 21
+#define HP2_Y 22
+#define HP3_X 23
+#define HP3_Y 24
 
-//Limit Switches for up and down
-#define PTop 22 //Periscope top limit switch
-#define PBot 23 //Periscope bottom limit switch
-#define BMTop 24 //Bad Motivator top limit switch
-#define BMBot 25 //Bad Motivator bottom limit switch
-#define ZTop 26 //Zapper top limit switch
-#define ZBot 27 //Zapper bottom limit switch
-#define LSTop 28 //Lightsaber top limit switch
-#define LSBot 29 //Lightsaber bottom limit switch
-#define LFTop 30 //Lifeform top limit switch
-#define LFBot 31 //Lifeform bottom limit switch
-
-// These pins are connected to ground to trigger, this can be done with a push button or code added later to make this remote from another source
-// #define buttonPin 38 // button pin to trigger dome zapper lift mechanism
-// #define buttonPin1 34 // button pin to trigger periscope lift mechanism
-// #define buttonPin2 37 // button pin to trigger Lifeform scanner lift mechanism
-// #define buttonPin3 35 // button pin to trigger Lightsaber lift mechanism
-// #define buttonPin4 36 // button pin to trigger Bad Motivator lift mechanism
-// #define buttonPin5 39 // button pin to trigger Drink Server lift mechanism
+int panelMap[25][5] = { // [panel name][pwm address][pwm channel][servo min][servo max]
+//name      addr  channel         min               max
+  {ZAP,     0x40, ZAPCHANNEL,     ZAPSERVOMIN,      ZAPSERVOMAX},
+  {ZAPTURN, 0x40, ZAPTURNCHANNEL, ZAPTURNSERVOMIN,  ZAPTURNSERVOMAX},
+  {PTURN,   0x40, PTURNCHANNEL,   PTURNSERVOMIN,    PTURNSERVOMAX},
+  {LFTURN,  0x40, LFTURNCHANNEL,  LFTURNSERVOMIN,   LFTURNSERVOMAX},
+  {ZLED,    0x40, ZLEDCHANNEL,    ZLEDSERVOMIN,     ZLEDSERVOMAX},
+  {BMLED,   0x40, BMLEDCHANNEL,   BMLEDSERVOMIN,    BMLEDSERVOMAX},
+  {LFLED,   0x40, LFLEDCHANNEL,   LFLEDSERVOMAX,    LFLEDSERVOMAX},
+  {PP1,     0x41, LSPPCHANNEL,    LSSERVOMIN,       LSSERVOMAX}, //Lightsaber
+  {PP5,     0x41, BMPPCHANNEL,    BMSERVOMIN,       BMSERVOMAX}, //Bad Motivator
+  {PP6,     0x41, ZPPCHANNEL,     ZSERVOMIN,        ZSERVOMAX}, //Zapper
+  {P10,     0x41, P10CHANNEL,     P10MIN,           P10MAX},
+  {P11,     0x41, P11CHANNEL,     P11MIN,           P11MAX},
+  {P13,     0x41, P13CHANNEL,     P13MIN,           P13MAX},
+  {HP1_X,   0x41, HP1XCHANNEL,    HP1_XMIN,         HP1_XMAX}, //front hp
+  {HP1_Y,   0x41, HP1YCHANNEL,    HP1_YMIN,         HP1_YMAX},
+  {PP2,     0x42, LFPPCHANNEL,    LFSERVOMIN,       LFSERVOMAX}, //Lifeform Scanner
+  {P1,      0x42, P1CHANNEL,      P1MIN,            P1MAX},
+  {P2,      0x42, P2CHANNEL,      P2MIN,            P2MAX},
+  {P3,      0x42, P3CHANNEL,      P3MIN,            P3MAX},
+  {P4,      0x42, P4CHANNEL,      P4MIN,            P4MAX},
+  {P7,      0x42, P7CHANNEL,      P7MIN,            P7MAX},
+  {HP2_X,   0x42, HP2XCHANNEL,    HP2_XMIN,         HP2_XMAX}, //back hp
+  {HP2_Y,   0x42, HP2YCHANNEL,    HP2_YMIN,         HP2_YMAX},
+  {HP3_X,   0x42, HP3XCHANNEL,    HP3_XMIN,         HP3_XMAX}, //top hp
+  {HP3_Y,   0x42, HP3YCHANNEL,    HP3_YMIN,         HP3_YMAX}
+};
 #pragma endregion
 
 #pragma region Timers
@@ -266,10 +386,17 @@ int ledState2 = LOW;          // the current state of the output pin
 // int lastButtonState5 = 0;     // the previous reading from the input pin
 #pragma endregion
 
-
 void setup() {
   Serial.begin(SERIAL_PORT_SPEED);// serial communication
   Serial.println("***Dome board ready***\n");
+
+  // Initialize holos and magic panel and set to default colors
+  pixelsHP.begin();
+  pixelsHP.setBrightness(holoBrightness);
+  pixelsHP.fill(holoColor, 0, NUMPIXELS_HP);
+  pixelsMP.begin();
+  pixelsMP.setBrightness(magicPanelBrightness);
+  pixelsMP.clear();
 
   pwm0.begin();
   pwm0.setPWMFreq(PWM_FREQ); //  standard for analog servos
@@ -278,7 +405,6 @@ void setup() {
   pwm2.begin();
   pwm2.setPWMFreq(PWM_FREQ);
 
-  #pragma region PinSetup
   //output pins
   pinMode(PIN1, OUTPUT);
   pinMode(PIN2, OUTPUT);
@@ -293,7 +419,7 @@ void setup() {
   // pinMode(ledPin, OUTPUT); // led pin on the arduino for testing
   
   // input pins
-  pinMode(PTop, INPUT_PULLUP); // using a limit switch, pin goes to Normally Open and Common goes to ground, value reads LOW when the switch is closed
+  pinMode(PTop, INPUT_PULLUP); // pin goes to NO and C goes to ground, value reads LOW when the switch is closed
   pinMode(PBot, INPUT_PULLUP);
   pinMode(BMTop, INPUT_PULLUP);
   pinMode(BMBot, INPUT_PULLUP);
@@ -321,9 +447,7 @@ void setup() {
   digitalWrite(LSIN2, LOW);
   digitalWrite(LFIN1, LOW);
   digitalWrite(LFIN2, LOW);
-
   //digitalWrite(ledPin, LOW); // set the led off
-  #pragma endregion
 
   //Set the servos to their start positions
   servoSetup(); // view function and end of code
@@ -331,8 +455,6 @@ void setup() {
   delay(1000); // wait for everything to get to their positions on power up
 }
 
-
-// Main Code here
 void loop() {
   // Serial.println("in loop()");
   //reset timers
@@ -342,143 +464,153 @@ void loop() {
     receiveDataFromMainBoard(); //reads any data in serial
   }
 
-  /* Button functionality
-  buttonState = digitalRead(buttonPin); // main trigger for button inputs
-  buttonState1 = digitalRead(buttonPin1); // main trigger for button inputs
-  buttonState2 = digitalRead(buttonPin2); // main trigger for button inputs
-  buttonState3 = digitalRead(buttonPin3); // main trigger for button inputs
-  buttonState4 = digitalRead(buttonPin4); // main trigger for button inputs
-  buttonState5 = digitalRead(buttonPin5); // main trigger for button inputs
+  //Button functionality
+  // buttonState = digitalRead(buttonPin); // main trigger for button inputs
+  // buttonState1 = digitalRead(buttonPin1); // main trigger for button inputs
+  // buttonState2 = digitalRead(buttonPin2); // main trigger for button inputs
+  // buttonState3 = digitalRead(buttonPin3); // main trigger for button inputs
+  // buttonState4 = digitalRead(buttonPin4); // main trigger for button inputs
+  // buttonState5 = digitalRead(buttonPin5); // main trigger for button inputs
+//
+  // if (buttonState != lastButtonState) {
+  //   if (buttonState == LOW) {
+  //     buttonPushCounter++;
+  //   }
+  // }
+//
+  // if (buttonState1 != lastButtonState1) {
+  //   if (buttonState1 == LOW) {
+  //     buttonPushCounter1++;
+  //   }
+  // }
+//
+  // if (buttonState2 != lastButtonState2) {
+  //   if (buttonState2 == LOW) {
+  //     buttonPushCounter2++;
+  //   }
+  // }
+//
+  // if (buttonState3 != lastButtonState3) {
+  //   if (buttonState3 == LOW) {
+  //     buttonPushCounter3++;
+  //   }
+  // }
+//
+  // if (buttonState4 != lastButtonState4) {
+  //   if (buttonState4 == LOW) {
+  //     buttonPushCounter4++;
+  //   }
+  // }
+//
+  // if (buttonState5 != lastButtonState5) {
+  //   if (buttonState5 == LOW) {
+  //     buttonPushCounter5++;
+  //   }
+  // }
+//
+  // //Dome Zapper
+  // if (buttonPushCounter == 1) {
+  //   DomeZapperUp();
+  //   if (ZTopVal == LOW && ZBotVal == HIGH) {
+  //     DomeZapper();
+  //   }
+  // }
+  // else if (buttonPushCounter == 2) {
+  //   pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
+  //   pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
+  //   pwm0.setPWM(8, 0, 4096); // sets the led LOW
+  //   DomeZapperDown();
+  // }
+  // else {
+  //   buttonPushCounter = 0;
+  //   statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
+  //   statezapdown = ZAP_MOVE_BOT;
+  //   statez = 1;
+  //   statezl = 0;
+  // }
+//
+  // //Periscope
+  // if (buttonPushCounter1 == 1) {
+  //   PeriscopeUp();
+  //   if (PTopVal == LOW && PBotVal == HIGH) {
+  //     PeriscopeTurn();
+  //   }
+  // }
+  // else if (buttonPushCounter1 == 2) {
+  //   pwm0.setPWM(6, 0, PTURNSERVOMIN); //periscope turn to original lift position
+  //   PeriscopeDown();
+  // }
+  // else {
+  //   buttonPushCounter1 = 0;
+  //   statepup = P_MOVE_TOP;
+  //   statepdown = P_MOVE_BOT;
+  //   statept = 0;
+  // }
+//
+  // //Lifeform scanner
+  // if (buttonPushCounter2 == 1) {
+  //   LifeformUp();
+  //   if (currentMillis - lfledpreviousmillis >= lfledinterval) {
+  //     pwm0.setPWM(10, 4096 , 0); //Lifeform LED HIGH
+  //     lfledpreviousmillis = currentMillis;
+  //   }
+  //   else {
+  //     pwm0.setPWM(10, 0, 4096); //Lifeform LED LOW
+  //   }
+  //   if (LFTopVal == LOW && LFBotVal == HIGH) {
+  //     LFTurn();
+  //   }
+  // }
+  // else if (buttonPushCounter2 == 2) {
+  //   pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn to original position
+  //   LifeformDown();
+  // }
+  // else {
+  //   buttonPushCounter2 = 0;
+  //   statelfup = LF_MOVE_TOP;
+  //   statelfdown = LF_MOVE_BOT;
+  //   statelft = 0;
+  // }
 
-  if (buttonState != lastButtonState) {
-    if (buttonState == LOW) {
-      buttonPushCounter++;
-    }
-  }
-
-  if (buttonState1 != lastButtonState1) {
-    if (buttonState1 == LOW) {
-      buttonPushCounter1++;
-    }
-  }
-
-  if (buttonState2 != lastButtonState2) {
-    if (buttonState2 == LOW) {
-      buttonPushCounter2++;
-    }
-  }
-
-  if (buttonState3 != lastButtonState3) {
-    if (buttonState3 == LOW) {
-      buttonPushCounter3++;
-    }
-  }
-
-  if (buttonState4 != lastButtonState4) {
-    if (buttonState4 == LOW) {
-      buttonPushCounter4++;
-    }
-  }
-  
-  if (buttonState5 != lastButtonState5) {
-    if (buttonState5 == LOW) {
-      buttonPushCounter5++;
-    }
-  }
-
-  //Dome Zapper
-  if (buttonPushCounter == 1) {
-    DomeZapperUp();
-    if (ZTopVal == LOW && ZBotVal == HIGH) {
-      DomeZapper();
-    }
-  }
-  else if (buttonPushCounter == 2) {
-    pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
-    pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
-    pwm0.setPWM(8, 0, 4096); // sets the led LOW
-    DomeZapperDown();
-  }
-  else {
-    buttonPushCounter = 0;
-    statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
-    statezapdown = ZAP_MOVE_BOT;
-    statez = 1;
-    statezl = 0;
-  }
-
-  //Periscope
-  if (buttonPushCounter1 == 1) {
-    PeriscopeUp();
-    if (PTopVal == LOW && PBotVal == HIGH) {
-      PeriscopeTurn();
-    }
-  }
-  else if (buttonPushCounter1 == 2) {
-    pwm0.setPWM(6, 0, PTURNSERVOMIN); //periscope turn to original lift position
-    PeriscopeDown();
-  }
-  else {
-    buttonPushCounter1 = 0;
-    statepup = P_MOVE_TOP;
-    statepdown = P_MOVE_BOT;
-    statept = 0;
-  }
-
-  //Lifeform scanner
-  if (buttonPushCounter2 == 1) {
-    LifeformUp();
-    if (currentMillis - lfledpreviousmillis >= lfledinterval) {
-      pwm0.setPWM(10, 4096 , 0); //Lifeform LED HIGH
-      lfledpreviousmillis = currentMillis;
-    }
-    else {
-      pwm0.setPWM(10, 0, 4096); //Lifeform LED LOW
-    }
-    if (LFTopVal == LOW && LFBotVal == HIGH) {
-      LFTurn();
-    }
-  }
-  else if (buttonPushCounter2 == 2) {
-    pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn to original position
-    LifeformDown();
-  }
-  else {
-    buttonPushCounter2 = 0;
-    statelfup = LF_MOVE_TOP;
-    statelfdown = LF_MOVE_BOT;
-    statelft = 0;
-  }
+  // delay(5000);
+  // Serial.println("BM up");
+  // buttonPushCounter3 = 1;
+  // delay(5000);
+  // Serial.println("BM down");
+  // buttonPushCounter3 = 2;
+  // delay(5000);
+  // Serial.println("BM reset");
+  // buttonPushCounter3 = 0;
+  // delay(5000);
 
   //Bad Motivator
-  if (buttonPushCounter3 == 1) {
-    BadMotivatorUp();
-    pwm0.setPWM(9, 4096, 0);
-  }
-  else if (buttonPushCounter3 == 2) {
-    BadMotivatorDown();
-    pwm0.setPWM(9, 0, 4096);
-  }
-  else {
-    buttonPushCounter3 = 0;
-    statebmup = BM_MOVE_TOP;
-    statebmdown = BM_MOVE_BOT;
-  }
-
+  // if (buttonPushCounter3 == 1) {
+  //   BadMotivatorUp();
+  //   pwm0.setPWM(9, 4096, 0);
+  // }
+  // else if (buttonPushCounter3 == 2) {
+  //   BadMotivatorDown();
+  //   pwm0.setPWM(9, 0, 4096);
+  // }
+  // else {
+  //   buttonPushCounter3 = 0;
+  //   statebmup = BM_MOVE_TOP;
+  //   statebmdown = BM_MOVE_BOT;
+  // }
+//
   //Lightsaber Lifter
-  if (buttonPushCounter4 == 1) {
-    LightsaberUp();
-  }
-  else if (buttonPushCounter4 == 2) {
-    LightsaberDown();
-  }
-  else {
-    buttonPushCounter4 = 0;
-    statelsup = LS_MOVE_TOP;
-    statelsdown = LS_MOVE_BOT;
-  }
-  */
-
+  // if (buttonPushCounter4 == 1) {
+  //   LightsaberUp();
+  // }
+  // else if (buttonPushCounter4 == 2) {
+  //   LightsaberDown();
+  // }
+  // else {
+  //   buttonPushCounter4 = 0;
+  //   statelsup = LS_MOVE_TOP;
+  //   statelsdown = LS_MOVE_BOT;
+  // }
+  
   // SerialOut(); // print to serial all values for testing
   // lastButtonState = buttonState; // reset the input button
   // lastButtonState1 = buttonState1; // reset the input button
@@ -487,467 +619,6 @@ void loop() {
   // lastButtonState4 = buttonState4; // reset the input button
   // lastButtonState5 = buttonState5; // reset the input button
 }
-
-void receiveDataFromMainBoard(){
-  // Serial.println("in receiveDataFromMainBoard()");
-  String command = Serial.readString(); //pull string from Serial
-  if (command.startsWith("CMD",0)) {
-    executingCommand = true;
-    processCommand(command);
-  } else {
-    Serial.println("This is not a dome command");
-  }
-}
-
-//define actions for all possible commands from body to dome
-void processCommand(String command){
-  // Serial.println("in processCommand()");
-  if (command == "CMD:PERISCOPE") {
-    PeriscopeUp();
-    if (PTopVal == LOW && PBotVal == HIGH) {
-      PeriscopeTurn();
-    }
-    pwm0.setPWM(6, 0, PTURNSERVOMIN); //periscope turn to original lift position
-    PeriscopeDown();
-
-    statepup = P_MOVE_TOP;
-    statepdown = P_MOVE_BOT;
-    statept = 0;
-  } else if (command == "CMD:LIFEFORMSCANNER") {
-    LifeformUp();
-    if (currentMillis - lfledpreviousmillis >= lfledinterval) {
-      pwm0.setPWM(10, 4096 , 0); //Lifeform LED HIGH
-      lfledpreviousmillis = currentMillis;
-    }
-    else {
-      pwm0.setPWM(10, 0, 4096); //Lifeform LED LOW
-    }
-    if (LFTopVal == LOW && LFBotVal == HIGH) {
-      LFTurn();
-    }
-    pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn to original position
-    LifeformDown();
-
-    statelfup = LF_MOVE_TOP;
-    statelfdown = LF_MOVE_BOT;
-    statelft = 0;
-  } else if (command == "CMD:ZAPPER") {
-    DomeZapperUp();
-    if (ZTopVal == LOW && ZBotVal == HIGH) { //if zapper is raised
-      DomeZapper();
-    }
-    pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
-    pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
-    pwm0.setPWM(8, 0, 4096); // sets the led LOW
-    DomeZapperDown();
-
-    statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
-    statezapdown = ZAP_MOVE_BOT;
-    statez = 1;
-    statezl = 0;
-  } else if (command == "CMD:BADMOTIVATOR") {
-    BadMotivatorUp();
-    pwm0.setPWM(9, 4096, 0); //BM led on
-    delay(bminterval); //wait for interval before lowering bad motivator
-    BadMotivatorDown();
-    pwm0.setPWM(9, 0, 4096); //BM led off
-
-    statebmup = BM_MOVE_TOP;
-    statebmdown = BM_MOVE_BOT;
-  } else if (command == "CMD:LIGHTSABER") {
-    LightsaberUp();
-    delay(lsinterval); //wait for interval before lowering lightsaber
-    LightsaberDown();
-
-    statelsup = LS_MOVE_TOP;
-    statelsdown = LS_MOVE_BOT;
-  } else if (command == "CMD:OVERLOAD") {
-    //open all panels
-    //raise all mechanisms
-    //magic panel on
-    //holos red
-    //play scream sound
-    delay(overloadinterval);
-    //holos normal
-    //magic panel off
-    //lower all mechanisms
-    //close all panels
-  } else if (command == "CMD:PANELWAVE") {
-    //open panels in sequence
-  } else if (command == "CMD:TOGGLEMAGICPANEL") {
-    //toggle magic panel on/off
-  } else if (command == "CMD:TOGGLEHOLOS") {
-    //toggle holos on/off
-  } else {
-    Serial.println("*** Unknown dome command");
-    executingCommand = false;
-    return;
-  }
-  printAck(command);
-  executingCommand = false; //finished executing command
-}
-
-void printAck(String command) {
-  // Serial.println("in printAck()");
-  Serial.print("*** ");
-  Serial.print(command);
-  Serial.print(" command executed\n");  //print ACK to serial
-}
-
-
-////////////////////////////////////////////////////////////
-// Functions below here for features
-////////////////////////////////////////////////////////////
-void DomeZapperUp() { // this function is for the dome zapper
-  switch (statezapup) {
-    case ZAP_MOVE_TOP:
-      if (ZTopVal != LOW) {
-        if (digitalRead(ZTop) == HIGH && digitalRead(ZBot) == LOW) {
-          pwm1.setPWM(2, 0, ZSERVOMAX); // open the pie panel
-        }
-        digitalWrite(ZIN1, HIGH); //turn the dc motor on
-        digitalWrite(ZIN2, LOW);
-        statezapup = ZAP_TOP;
-      }
-      break;
-    case ZAP_TOP:
-      if (ZTopVal == LOW) {
-        digitalWrite(ZIN1, LOW); //turn the motor off
-        digitalWrite(ZIN2, LOW); //turn the motor off
-        //pwm0.setPWM(4, 0, ZAPSERVOMAX); //lift zapper arm
-      }
-      break;
-  }
-}
-
-void DomeZapperDown() { // this function is for the dome zapper
-  switch (statezapdown) {
-    case ZAP_MOVE_BOT:
-      if (ZBotVal != LOW) {
-        digitalWrite(ZIN1, LOW); //turn the dc motor on
-        digitalWrite(ZIN2, HIGH);
-        statezapdown = ZAP_BOT;
-      }
-      break;
-    case ZAP_BOT:
-      if (ZBotVal == LOW) {
-        digitalWrite(ZIN1, LOW); //turn the dc motor on
-        digitalWrite(ZIN2, LOW);
-        if (digitalRead(ZBot) == LOW && digitalRead(ZTop) == HIGH) {
-          pwm1.setPWM(2, 0, ZSERVOMIN); // close the pie panel
-        }
-      }
-      break;
-  }
-}
-
-void DomeZapper() { //lift zapper arm servo, flash light, rotate to new position and flash, return to first position, arm down
-  switch (statez) {
-    case 1:
-      currentMillis = millis();
-      pwm0.setPWM(4, 0, ZAPSERVOMAX); //lift zapper arm
-      if (currentMillis - zapturnpreviousMillis >= zapturninterval2) {
-        statez = 2;
-        zapturnpreviousMillis = currentMillis;  
-      }
-      break;
-
-    case 2:
-      currentMillis = millis();
-      pwm0.setPWM(5, 0, ZAPTURNSERVOMAX); //turn zapper arm
-      ZapLed(); // flash the LED
-      if (currentMillis - zapturnpreviousMillis >= zapturninterval2) {
-        statez = 3;
-        zapturnpreviousMillis = currentMillis;
-      }
-      break;
-
-    case 3:
-      currentMillis = millis();
-      if (currentMillis - zapturnpreviousMillis >= zapturninterval2) {
-        pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn
-        statez = 0;
-        zapturnpreviousMillis = currentMillis;
-      }
-      break;
-  }
-}
-
-void ZapLed() {
-  switch (statezl)
-  {
-    case 0:
-      currentMillis = millis();
-      pwm0.setPWM(8, 4096, 0); // sets the led HIGH from the PCA9685
-      if (currentMillis - zappreviousMillis >= zapinterval) {
-        zappreviousMillis = currentMillis;
-        statezl = 1;
-      }
-      break;
-
-    case 1:
-      currentMillis = millis();
-      pwm0.setPWM(8, 0, 4096); // sets the led LOW from the PCA9685
-      if (currentMillis - zappreviousMillis >= zapinterval) {
-        zappreviousMillis = currentMillis;
-        statezl = 2;
-      }
-      break;
-
-    case 2:
-      currentMillis = millis();
-      zapflashcount++;
-      if (zapflashcount == 80) {
-        statezl = 3;
-        zapflashcount = 0;
-      }
-      else {
-        statezl = 0;
-      }
-      break;
-  }
-}
-
-
-void PeriscopeUp() { //button tirggered Lift periscope, flash lights, rotate back and forwards, when button triggered again lower again in home position turn off lights
-  switch (statepup) {
-    case P_MOVE_TOP:
-      if (PTopVal != LOW) {
-        digitalWrite(PIN1, HIGH); //turn the dc motor on
-        digitalWrite(PIN2, LOW);
-        statepup = P_TOP;
-      }
-      break;
-    case P_TOP:
-      if (PTopVal == LOW) {
-        pwm0.setPWM(11, 4096, 0); // sets the led HIGH from the PCA9685
-        digitalWrite(PIN1, LOW); //turn the motor off
-        digitalWrite(PIN2, LOW); //turn the motor off
-      }
-      break;
-
-  }
-}
-
-void PeriscopeDown() { // this function lowers the periscope
-  switch (statepdown) {
-    case P_MOVE_BOT:
-      if (PBotVal != LOW) {
-        pwm0.setPWM(11, 0, 4096); // sets the led LOW from the PCA9685
-        digitalWrite(PIN1, LOW); //turn the dc motor on
-        digitalWrite(PIN2, HIGH);
-        statepdown = P_BOT;
-      }
-      break;
-    case P_BOT:
-      if (PBotVal == LOW) {
-        pwm0.setPWM(11, 0, 4096); // sets the led LOW from the PCA9685
-        digitalWrite(PIN1, LOW); //turn the dc motor on
-        digitalWrite(PIN2, LOW);
-      }
-      break;
-  }
-}
-
-void PeriscopeTurn() { // turn the periscope back and forwards
-  switch (statept)
-  {
-    case 0:
-      currentMillis = millis();
-      if (currentMillis - pturnpreviousMillis >= pturninterval) {
-        pwm0.setPWM(6, 0, PTURNSERVOMAX); //turn
-        pturnpreviousMillis = currentMillis;
-        statept = 1;
-      }
-      break;
-
-    case 1:
-      currentMillis = millis();
-      if (currentMillis - pturnpreviousMillis >= pturninterval) {
-        pwm0.setPWM(6, 0, PTURNSERVOMIN); //turn
-        pturnpreviousMillis = currentMillis;
-        statept = 2;
-      }
-      break;
-
-    case 2:
-      currentMillis = millis();
-      pturncount++;
-      if (pturncount == 3) {
-        statept = 3;
-        pturncount = 0;
-      }
-      else {
-        statept = 0;
-      }
-      break;
-  }
-}
-
-
-void LifeformUp() { //button tirggered Lift Lifeform Scanner, when button triggered again lower in home position
-  switch (statelfup) {
-    case LF_MOVE_TOP:
-      if (LFTopVal != LOW) {
-        if (digitalRead(LFTop) == HIGH && digitalRead(LFBot) == LOW) {
-          pwm2.setPWM(0, 0, LFSERVOMAX); // open the pie panel
-        }
-        digitalWrite(LFIN1, HIGH); //turn the dc motor on
-        digitalWrite(LFIN2, LOW);
-        statelfup = LF_TOP;
-      }
-      break;
-    case LF_TOP:
-      if (LFTopVal == LOW) {
-        digitalWrite(LFIN1, LOW); //turn the motor off
-        digitalWrite(LFIN2, LOW); //turn the motor off
-      }
-      break;
-  }
-}
-
-void LifeformDown() { // this function lowers the Lifeform scanner
-  switch (statelfdown) {
-    case LF_MOVE_BOT:
-      if (LFBotVal != LOW) {
-        digitalWrite(LFIN1, LOW); //turn the dc motor on
-        digitalWrite(LFIN2, HIGH);
-        statelfdown = LF_BOT;
-      }
-      break;
-    case LF_BOT:
-      if (LFBotVal == LOW) {
-        digitalWrite(LFIN1, LOW); //turn the dc motor on
-        digitalWrite(LFIN2, LOW);
-        if (digitalRead(LFBot) == LOW && digitalRead(LFTop) == HIGH) {
-          pwm2.setPWM(0, 0, LFSERVOMIN); // close the pie panel
-        }
-      }
-      break;
-  }
-}
-
-void LFTurn() { // turn the Lifeform scanner back and forwards
-  switch (statelft)
-  {
-    case 0:
-      currentMillis = millis();
-      if (currentMillis - lfturnpreviousMillis >= lfturninterval) {
-        pwm0.setPWM(7, 0, LFTURNSERVOMAX); //Lifeform turn
-        lfturnpreviousMillis = currentMillis;
-        statelft = 1;
-      }
-      break;
-
-    case 1:
-      currentMillis = millis();
-      if (currentMillis - lfturnpreviousMillis >= lfturninterval) {
-        pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn
-        lfturnpreviousMillis = currentMillis;
-        statelft = 2;
-      }
-      break;
-
-    case 2:
-      currentMillis = millis();
-      lfturncount++;
-      if (lfturncount == 6) {
-        statelft = 3;
-        lfturncount = 0;
-      }
-      else {
-        statelft = 0;
-      }
-      break;
-  }
-}
-
-
-void BadMotivatorUp() { //button tirggered Lift Bad Motivator, when button triggered again lower in home position
-  switch (statebmup) {
-    case BM_MOVE_TOP:
-      if (BMTopVal != LOW) {
-        if (digitalRead(BMTop) == HIGH && digitalRead(BMBot) == LOW) {
-          pwm1.setPWM(1, 0, BMSERVOMAX); // open the pie panel
-        }
-        digitalWrite(BMIN1, HIGH); //turn the dc motor on
-        digitalWrite(BMIN2, LOW);
-        statebmup = BM_TOP;
-      }
-      break;
-    case BM_TOP:
-      if (BMTopVal == LOW) {
-        digitalWrite(BMIN1, LOW); //turn the motor off
-        digitalWrite(BMIN2, LOW); //turn the motor off
-      }
-      break;
-  }
-}
-
-void BadMotivatorDown() { // this function lowers the Bad Motivator
-  switch (statebmdown) {
-    case BM_MOVE_BOT:
-      if (BMBotVal != LOW) {
-        digitalWrite(BMIN1, LOW); //turn the dc motor on
-        digitalWrite(BMIN2, HIGH);
-        statebmdown = BM_BOT;
-      }
-      break;
-    case BM_BOT:
-      if (BMBotVal == LOW) {
-        digitalWrite(BMIN1, LOW); //turn the dc motor on
-        digitalWrite(BMIN2, LOW);
-        if (digitalRead(BMBot) == LOW && digitalRead(BMTop) == HIGH) {
-          pwm1.setPWM(1, 0, BMSERVOMIN); // close the pie panel
-        }
-      }
-      break;
-  }
-}
-
-
-void LightsaberUp() { //button tirggered Lift Lightsaber, when button triggered again lower
-  switch (statelsup) {
-    case LS_MOVE_TOP:
-      if (LSTopVal != LOW) {
-        if (digitalRead(LSTop) == HIGH && digitalRead(LSBot) == LOW) {
-          pwm1.setPWM(0, 0, LSSERVOMAX); // open the pie panel
-        }
-        digitalWrite(LSIN1, HIGH); //turn the dc motor on
-        digitalWrite(LSIN2, LOW);
-        statelsup = LS_TOP;
-      }
-      break;
-    case LS_TOP:
-      if (LSTopVal == LOW) {
-        digitalWrite(LSIN1, LOW); //turn the motor off
-        digitalWrite(LSIN2, LOW); //turn the motor off
-      }
-      break;
-  }
-}
-
-void LightsaberDown() { // this function lowers the Lightsaber
-  switch (statelsdown) {
-    case LS_MOVE_BOT:
-      if (LSBotVal != LOW) {
-        digitalWrite(LSIN1, LOW); //turn the dc motor on
-        digitalWrite(LSIN2, HIGH);
-        statelsdown = LS_BOT;
-      }
-      break;
-    case LS_BOT:
-      if (LSBotVal == LOW) {
-        digitalWrite(LSIN1, LOW); //turn the dc motor on
-        digitalWrite(LSIN2, LOW);
-        if (digitalRead(LSBot) == LOW && digitalRead(LSTop) == HIGH) {
-          pwm1.setPWM(0, 0, LSSERVOMIN); // close the pie panel
-        }
-      }
-      break;
-  }
-}
-
 
 void readlimits() { //this function reads all the limit swtiches and stores their values for compare to end stops in the main loop, it's just written here to keep the loop code clean
   PBotVal = digitalRead(PBot);
@@ -995,6 +666,578 @@ void servoSetup() {
   pwm2.setPWM(9,HP3_YMIN,HP3_YMAX); //HP3_Y
   // Serial.println("done setting up pwm servos");
 }
+
+#pragma region CommunicationFunctions
+void receiveDataFromMainBoard() {
+  // Serial.println("in receiveDataFromMainBoard()");
+  String command = Serial.readString(); //pull string from Serial
+  if (command.startsWith("CMD",0)) {
+    executingCommand = true;
+    processCommand(command);
+  } else {
+    Serial.println("This is not a dome command");
+  }
+}
+
+//define actions for all possible commands from body to dome
+void processCommand(String command) {
+  // Serial.println("in processCommand()");
+  if (command == "CMD:PERISCOPE") {
+    PeriscopeUp();
+    if (PTopVal == LOW && PBotVal == HIGH) {
+      PeriscopeTurn();
+    }
+    pwm0.setPWM(6, 0, PTURNSERVOMIN); //periscope turn to original lift position
+    PeriscopeDown();
+
+    statepup = P_MOVE_TOP;
+    statepdown = P_MOVE_BOT;
+    statept = 0;
+  } else if (command == "CMD:LIFEFORMSCANNER") {
+    LifeformUp();
+    if (currentMillis - lfledpreviousmillis >= lfledinterval) {
+      pwm0.setPWM(10, 4096 , 0); //Lifeform LED HIGH
+      lfledpreviousmillis = currentMillis;
+    } else {
+      pwm0.setPWM(10, 0, 4096); //Lifeform LED LOW
+    }
+    if (LFTopVal == LOW && LFBotVal == HIGH) {
+      LFTurn();
+    }
+    pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn to original position
+    LifeformDown();
+
+    statelfup = LF_MOVE_TOP;
+    statelfdown = LF_MOVE_BOT;
+    statelft = 0;
+  } else if (command == "CMD:ZAPPER") {
+    DomeZapperUp();
+    if (ZTopVal == LOW && ZBotVal == HIGH) { //if zapper is raised
+      DomeZapper();
+    }
+    pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
+    pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
+    pwm0.setPWM(8, 0, 4096); // sets the led LOW
+    DomeZapperDown();
+
+    statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
+    statezapdown = ZAP_MOVE_BOT;
+    statez = 1;
+    statezl = 0;
+  } else if (command == "CMD:BADMOTIVATOR") {
+    BadMotivatorUp();
+    pwm0.setPWM(9, 4096, 0); //BM led on
+    delay(bminterval); //wait for interval before lowering bad motivator
+    BadMotivatorDown();
+    pwm0.setPWM(9, 0, 4096); //BM led off
+
+    statebmup = BM_MOVE_TOP;
+    statebmdown = BM_MOVE_BOT;
+  } else if (command == "CMD:LIGHTSABER") {
+    LightsaberUp();
+    delay(lsinterval); //wait for interval before lowering lightsaber
+    LightsaberDown();
+
+    statelsup = LS_MOVE_TOP;
+    statelsdown = LS_MOVE_BOT;
+  } else if (command == "CMD:OVERLOAD") {
+    //open all panels, raise all mechanisms, magic panel on, holos red, play scream sound
+    delay(overloadinterval);
+    //holos normal, magic panel off, lower all mechanisms, close all panels
+  } else if (command == "CMD:PANELWAVE") {
+    //open panels in sequence
+  } else if (command == "CMD:TOGGLEMAGICPANEL") {
+    //TODO: toggle magic panel on/off
+    // toggleMagicPanel();
+  } else if (command == "CMD:TOGGLEHOLOS") {
+    toggleHolos();
+  } else if (command.substring(0,20) == "CMD:CHANGEHOLOSCOLOR") { // ignore color name in command
+    String color = command.substring(20);
+    holoColor = getColorFromString(color);
+    setHoloColor(holoColor);
+  } else {
+    Serial.println("*** Unknown dome command");
+    executingCommand = false;
+    return;
+  }
+  printAck(command);
+  executingCommand = false; //finished executing command
+}
+
+void printAck(String command) {
+  // Serial.println("in printAck()");
+  Serial.print("*** ");
+  Serial.print(command);
+  Serial.print(" command executed\n");  //print ACK to serial
+}
+#pragma endregion
+
+#pragma region HoloFunctions
+// =======================================================================================
+//                          Holo Functions
+// =======================================================================================
+int getColorFromString(String strColor) {
+  // int n = sizeof(colorNames) / sizeof(colorNames[0]);
+  // auto ptr = find(colorNames, colorNames + n, strColor); // Using find() to get the pointer to the first occurence of value
+  // int idx = ptr - colorNames; // Getting index from pointer
+  
+  for (int i = 0; i < sizeof(colorNames); i++) {
+    if ((String)colorNames[i] = strColor) {
+      return i;
+    }
+  }
+  Serial.println("Color name not Found!");
+  return 0;
+}
+
+void toggleHolos() {
+  if (holosOn) { // if holos are currently on
+    pixelsHP.clear();
+    holosOn = false;
+  } else { // if holos are currently off
+    setHoloColor(WHITE);
+    holosOn = true;
+  }
+}
+
+void setHoloColor(int holoColor) {
+  pixelsHP.fill(holoColor, 0, NUMPIXELS_HP);
+  pixelsHP.show();   // Send the updated pixel colors to the hardware.
+}
+#pragma endregion
+
+#pragma region MagicPanelFunctions
+// =======================================================================================
+//                          Magic Panel Functions
+// =======================================================================================
+void toggleMagicPanel() {
+  if (magicPanelOn) { // if magic panel is currently on
+    pixelsMP.clear();
+    magicPanelOn = false;
+  } else { // if magic panel is currently off
+    setMagicPanelColor(RED);
+    magicPanelOn = true;
+  }
+}
+
+void setMagicPanelColor(int magicPanelColor) {
+  pixelsMP.fill(magicPanelColor, 0, NUMPIXELS_MP);
+  pixelsMP.show();   // Send the updated pixel colors to the hardware.
+}
+#pragma endregion
+
+#pragma region DomePanelFunctions
+// =======================================================================================
+//                          Dome Panel Functions
+// =======================================================================================
+void panelWave() {
+  //Panel order 10, 11, 13, 1, 2, 3, 4
+  int panels[] = {P10, P11, P13, P1, P2, P3, P4};
+  for (int i = 0; i < sizeof(panels); i++) {
+    openPanel(panels[i]);
+  }
+  for (int i = 0; i < sizeof(panels); i++) {
+    closePanel(panels[i]);
+  }
+  for (int i = sizeof(panels); i >= 0; i--) {
+    openPanel(panels[i]);
+  }
+  for (int i = sizeof(panels); i >= 0; i--) {
+    closePanel(panels[i]);
+  }
+}
+
+void openPanel(int panelName) {
+  if (getPwmAddress(panelName) == 0x40) {
+    pwm0.setPWM(getPwmChannel(panelName), 0, panelMap[panelName][4]);
+  } else if (getPwmAddress(panelName) == 0x41) {
+    pwm1.setPWM(getPwmChannel(panelName), 0, panelMap[panelName][4]);
+  } else if (getPwmAddress(panelName) == 0x42) {
+    pwm2.setPWM(getPwmChannel(panelName), 0, panelMap[panelName][4]);
+  }
+}
+
+void closePanel(int panelName) {
+  if (getPwmAddress(panelName) == 0x40) {
+    pwm0.setPWM(getPwmChannel(panelName), 0, panelMap[panelName][3]);
+  } else if (getPwmAddress(panelName) == 0x41) {
+    pwm1.setPWM(getPwmChannel(panelName), 0, panelMap[panelName][3]);
+  } else if (getPwmAddress(panelName) == 0x42) {
+    pwm2.setPWM(getPwmChannel(panelName), 0, panelMap[panelName][3]);
+  }
+}
+
+void panelWaveHello() {
+  //wave panel 11 or 13?
+  openPanel(P11); //open/max
+  closePanel(P11); //close/min
+  openPanel(P11); //open/max
+  closePanel(P11); //close/min
+}
+
+void panelDance() {
+  //open/close in sequence with cantina dance
+}
+
+int getPwmAddress(int panelName) {
+  return panelMap[panelName][1];
+}
+
+int getPwmChannel(int panelName) {
+  return panelMap[panelName][2];
+}
+#pragma endregion
+
+#pragma region MechFunctions
+////////////////////////////////////////////////////////////
+// Functions below here for features
+////////////////////////////////////////////////////////////
+void DomeZapperUp() { // this function is for the dome zapper
+  switch (statezapup) {
+    case ZAP_MOVE_TOP:
+    Serial.println("in DomeZapperUp() case ZAP_MOVE_TOP");
+      if (ZTopVal != LOW) {
+        if (digitalRead(ZTop) == HIGH && digitalRead(ZBot) == LOW) {
+          Serial.print("opening zapper pie panel");
+          pwm1.setPWM(2, 0, ZSERVOMAX); // open the pie panel
+        }
+        digitalWrite(ZIN1, HIGH); //turn the dc motor on
+        Serial.println("zapper motor on");
+        digitalWrite(ZIN2, LOW);
+        statezapup = ZAP_TOP;
+      }
+      break;
+    case ZAP_TOP:
+    Serial.println("in DomeZapperUp() case ZAP_TOP");
+      if (ZTopVal == LOW) {
+        digitalWrite(ZIN1, LOW); //turn the motor off
+        digitalWrite(ZIN2, LOW); //turn the motor off
+        //pwm0.setPWM(4, 0, ZAPSERVOMAX); //lift zapper arm
+      }
+      break;
+  }
+}
+
+void DomeZapperDown() { // this function is for the dome zapper
+Serial.println("in DomeZapperDown()");
+  switch (statezapdown) {
+    case ZAP_MOVE_BOT:
+      if (ZBotVal != LOW) {
+        digitalWrite(ZIN1, LOW); //turn the dc motor on
+        digitalWrite(ZIN2, HIGH);
+        statezapdown = ZAP_BOT;
+      }
+      break;
+    case ZAP_BOT:
+      if (ZBotVal == LOW) {
+        digitalWrite(ZIN1, LOW); //turn the dc motor on
+        digitalWrite(ZIN2, LOW);
+        if (digitalRead(ZBot) == LOW && digitalRead(ZTop) == HIGH) {
+          pwm1.setPWM(2, 0, ZSERVOMIN); // close the pie panel
+        }
+      }
+      break;
+  }
+}
+
+void DomeZapper() { //lift zapper arm servo, flash light, rotate to new position and flash, return to first position, arm down
+  switch (statez) {
+    case 1:
+      currentMillis = millis();
+      pwm0.setPWM(4, 0, panelMap[4][4]); //lift zapper arm
+      if (currentMillis - zapturnpreviousMillis >= zapturninterval2) {
+        statez = 2;
+        zapturnpreviousMillis = currentMillis;  
+      }
+      break;
+    case 2:
+      currentMillis = millis();
+      pwm0.setPWM(5, 0, panelMap[5][4]); //turn zapper arm
+      ZapLed(); // flash the LED
+      if (currentMillis - zapturnpreviousMillis >= zapturninterval2) {
+        statez = 3;
+        zapturnpreviousMillis = currentMillis;
+      }
+      break;
+    case 3:
+      currentMillis = millis();
+      if (currentMillis - zapturnpreviousMillis >= zapturninterval2) {
+        pwm0.setPWM(5, 0, panelMap[5][3]); //turn
+        statez = 0;
+        zapturnpreviousMillis = currentMillis;
+      }
+      break;
+  }
+}
+
+void ZapLed() {
+  switch (statezl) {
+    case 0:
+      currentMillis = millis();
+      pwm0.setPWM(8, 4096, 0); // sets the led HIGH from the PCA9685
+      if (currentMillis - zappreviousMillis >= zapinterval) {
+        zappreviousMillis = currentMillis;
+        statezl = 1;
+      }
+      break;
+    case 1:
+      currentMillis = millis();
+      pwm0.setPWM(8, 0, 4096); // sets the led LOW from the PCA9685
+      if (currentMillis - zappreviousMillis >= zapinterval) {
+        zappreviousMillis = currentMillis;
+        statezl = 2;
+      }
+      break;
+    case 2:
+      currentMillis = millis();
+      zapflashcount++;
+      if (zapflashcount == 80) {
+        statezl = 3;
+        zapflashcount = 0;
+      }
+      else {
+        statezl = 0;
+      }
+      break;
+  }
+}
+
+void PeriscopeUp() { //button tirggered Lift periscope, flash lights, rotate back and forwards, when button triggered again lower again in home position turn off lights
+  switch (statepup) {
+    case P_MOVE_TOP:
+      if (PTopVal != LOW) {
+        digitalWrite(PIN1, HIGH); //turn the dc motor on
+        digitalWrite(PIN2, LOW);
+        statepup = P_TOP;
+      }
+      break;
+    case P_TOP:
+      if (PTopVal == LOW) {
+        pwm0.setPWM(11, 4096, 0); // sets the led HIGH from the PCA9685
+        digitalWrite(PIN1, LOW); //turn the motor off
+        digitalWrite(PIN2, LOW); //turn the motor off
+      }
+      break;
+  }
+}
+
+void PeriscopeDown() { // this function lowers the periscope
+  switch (statepdown) {
+    case P_MOVE_BOT:
+      if (PBotVal != LOW) {
+        pwm0.setPWM(11, 0, 4096); // sets the led LOW from the PCA9685
+        digitalWrite(PIN1, LOW); //turn the dc motor on
+        digitalWrite(PIN2, HIGH);
+        statepdown = P_BOT;
+      }
+      break;
+    case P_BOT:
+      if (PBotVal == LOW) {
+        pwm0.setPWM(11, 0, 4096); // sets the led LOW from the PCA9685
+        digitalWrite(PIN1, LOW); //turn the dc motor on
+        digitalWrite(PIN2, LOW);
+      }
+      break;
+  }
+}
+
+void PeriscopeTurn() { // turn the periscope back and forwards
+  switch (statept) {
+    case 0:
+      currentMillis = millis();
+      if (currentMillis - pturnpreviousMillis >= pturninterval) {
+        pwm0.setPWM(6, 0, PTURNSERVOMAX); //turn
+        pturnpreviousMillis = currentMillis;
+        statept = 1;
+      }
+      break;
+    case 1:
+      currentMillis = millis();
+      if (currentMillis - pturnpreviousMillis >= pturninterval) {
+        pwm0.setPWM(6, 0, PTURNSERVOMIN); //turn
+        pturnpreviousMillis = currentMillis;
+        statept = 2;
+      }
+      break;
+    case 2:
+      currentMillis = millis();
+      pturncount++;
+      if (pturncount == 3) {
+        statept = 3;
+        pturncount = 0;
+      } else {
+        statept = 0;
+      }
+      break;
+  }
+}
+
+
+void LifeformUp() {
+  switch (statelfup) {
+    case LF_MOVE_TOP:
+      if (LFTopVal != LOW) {
+        if (digitalRead(LFTop) == HIGH && digitalRead(LFBot) == LOW) {
+          pwm2.setPWM(0, 0, LFSERVOMAX); // open the pie panel
+        }
+        digitalWrite(LFIN1, HIGH); //turn the dc motor on
+        digitalWrite(LFIN2, LOW);
+        statelfup = LF_TOP;
+      }
+      break;
+    case LF_TOP:
+      if (LFTopVal == LOW) {
+        digitalWrite(LFIN1, LOW); //turn the motor off
+        digitalWrite(LFIN2, LOW); //turn the motor off
+      }
+      break;
+  }
+}
+
+void LifeformDown() {
+  switch (statelfdown) {
+    case LF_MOVE_BOT:
+      if (LFBotVal != LOW) {
+        digitalWrite(LFIN1, LOW); //turn the dc motor on
+        digitalWrite(LFIN2, HIGH);
+        statelfdown = LF_BOT;
+      }
+      break;
+    case LF_BOT:
+      if (LFBotVal == LOW) {
+        digitalWrite(LFIN1, LOW); //turn the dc motor on
+        digitalWrite(LFIN2, LOW);
+        if (digitalRead(LFBot) == LOW && digitalRead(LFTop) == HIGH) {
+          pwm2.setPWM(0, 0, LFSERVOMIN); // close the pie panel
+        }
+      }
+      break;
+  }
+}
+
+void LFTurn() {
+  switch (statelft) {
+    case 0:
+      currentMillis = millis();
+      if (currentMillis - lfturnpreviousMillis >= lfturninterval) {
+        pwm0.setPWM(7, 0, LFTURNSERVOMAX); //Lifeform turn
+        lfturnpreviousMillis = currentMillis;
+        statelft = 1;
+      }
+      break;
+    case 1:
+      currentMillis = millis();
+      if (currentMillis - lfturnpreviousMillis >= lfturninterval) {
+        pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn
+        lfturnpreviousMillis = currentMillis;
+        statelft = 2;
+      }
+      break;
+    case 2:
+      currentMillis = millis();
+      lfturncount++;
+      if (lfturncount == 6) {
+        statelft = 3;
+        lfturncount = 0;
+      }
+      else {
+        statelft = 0;
+      }
+      break;
+  }
+}
+
+
+void BadMotivatorUp() {
+  switch (statebmup) {
+    case BM_MOVE_TOP:
+    Serial.println("in BadMotivatorUp() case BM_MOVE_TOP");
+      if (BMTopVal != LOW) {
+        if (digitalRead(BMTop) == HIGH && digitalRead(BMBot) == LOW) {
+          pwm1.setPWM(1, 0, BMSERVOMAX); // open the pie panel
+        }
+        digitalWrite(BMIN1, HIGH); //turn the dc motor on
+        Serial.println("BM motor on");
+        digitalWrite(BMIN2, LOW);
+        statebmup = BM_TOP;
+      }
+      break;
+    case BM_TOP:
+    Serial.println("in BadMotivatorUp() case BM_TOP");
+      if (BMTopVal == LOW) {
+        digitalWrite(BMIN1, LOW); //turn the motor off
+        digitalWrite(BMIN2, LOW); //turn the motor off
+      }
+      break;
+  }
+}
+
+void BadMotivatorDown() {
+  switch (statebmdown) {
+    case BM_MOVE_BOT:
+    Serial.println("in BadMotivatorDown() case BM_MOVE_BOT");
+      if (BMBotVal != LOW) {
+        digitalWrite(BMIN1, LOW); //turn the dc motor on
+        digitalWrite(BMIN2, HIGH);
+        statebmdown = BM_BOT;
+      }
+      break;
+    case BM_BOT:
+    Serial.println("in BadMotivatorDown() case BM_BOT");
+      if (BMBotVal == LOW) {
+        digitalWrite(BMIN1, LOW); //turn the dc motor on
+        digitalWrite(BMIN2, LOW);
+        if (digitalRead(BMBot) == LOW && digitalRead(BMTop) == HIGH) {
+          pwm1.setPWM(1, 0, BMSERVOMIN); // close the pie panel
+        }
+      }
+      break;
+  }
+}
+
+
+void LightsaberUp() {
+  switch (statelsup) {
+    case LS_MOVE_TOP:
+      if (LSTopVal != LOW) {
+        if (digitalRead(LSTop) == HIGH && digitalRead(LSBot) == LOW) {
+          pwm1.setPWM(0, 0, LSSERVOMAX); // open the pie panel
+        }
+        digitalWrite(LSIN1, HIGH); //turn the dc motor on
+        digitalWrite(LSIN2, LOW);
+        statelsup = LS_TOP;
+      }
+      break;
+    case LS_TOP:
+      if (LSTopVal == LOW) {
+        digitalWrite(LSIN1, LOW); //turn the motor off
+        digitalWrite(LSIN2, LOW); //turn the motor off
+      }
+      break;
+  }
+}
+
+void LightsaberDown() {
+  switch (statelsdown) {
+    case LS_MOVE_BOT:
+      if (LSBotVal != LOW) {
+        digitalWrite(LSIN1, LOW); //turn the dc motor on
+        digitalWrite(LSIN2, HIGH);
+        statelsdown = LS_BOT;
+      }
+      break;
+    case LS_BOT:
+      if (LSBotVal == LOW) {
+        digitalWrite(LSIN1, LOW); //turn the dc motor on
+        digitalWrite(LSIN2, LOW);
+        if (digitalRead(LSBot) == LOW && digitalRead(LSTop) == HIGH) {
+          pwm1.setPWM(0, 0, LSSERVOMIN); // close the pie panel
+        }
+      }
+      break;
+  }
+}
+#pragma endregion
 
 //Function to display values for testing, uncheck any values you don't want to or do want to see
 void SerialOut() {
