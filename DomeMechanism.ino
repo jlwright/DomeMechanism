@@ -620,7 +620,7 @@ void loop() {
   // lastButtonState5 = buttonState5; // reset the input button
 }
 
-void readlimits() { //this function reads all the limit swtiches and stores their values for compare to end stops in the main loop, it's just written here to keep the loop code clean
+void readlimits() { //reads limit swtiches and stores values for compare to end stops in the main loop
   PBotVal = digitalRead(PBot);
   PTopVal = digitalRead(PTop);
   BMTopVal = digitalRead(BMTop);
@@ -674,7 +674,7 @@ void receiveDataFromMainBoard() {
   if (command.startsWith("CMD:", 0)) {
     executingCommand = true;
     // command = command.substring(4); // remove "CMD:" from the string
-    processCommand((int)command[command.length() - 1]); // get last char of command and parse to int
+    processCommand(command); // get last char of command and parse to int
   } else {
     Serial.println("This is not a dome command");
   }
@@ -683,8 +683,7 @@ void receiveDataFromMainBoard() {
 //define actions for all possible commands from body to dome
 void processCommand(String command) {
   // Serial.println("in processCommand()");
-  switch (command) {
-    case PERISCOPE:
+  if (command == "CMD:PERISCOPE") {
       PeriscopeUp();
       if (PTopVal == LOW && PBotVal == HIGH) {
         PeriscopeTurn();
@@ -709,36 +708,36 @@ void processCommand(String command) {
     pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn to original position
     LifeformDown();
 
-      statelfup = LF_MOVE_TOP;
-      statelfdown = LF_MOVE_BOT;
-      statelft = 0;
-    case ZAPPER:
-      DomeZapperUp();
-      if (ZTopVal == LOW && ZBotVal == HIGH) { //if zapper is raised
-        DomeZapper();
-      }
-      pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
-      pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
-      pwm0.setPWM(8, 0, 4096); // sets the led LOW
-      DomeZapperDown();
+    statelfup = LF_MOVE_TOP;
+    statelfdown = LF_MOVE_BOT;
+    statelft = 0;
+  } else if (command == "CMD:ZAPPER") {
+    DomeZapperUp();
+    if (ZTopVal == LOW && ZBotVal == HIGH) { //if zapper is raised
+      DomeZapper();
+    }
+    pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
+    pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
+    pwm0.setPWM(8, 0, 4096); // sets the led LOW
+    DomeZapperDown();
 
-      statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
-      statezapdown = ZAP_MOVE_BOT;
-      statez = 1;
-      statezl = 0;
-    case BADMOTIVATOR:
-      BadMotivatorUp();
-      pwm0.setPWM(9, 4096, 0); //BM led on
-      delay(bminterval); //wait for interval before lowering bad motivator
-      BadMotivatorDown();
-      pwm0.setPWM(9, 0, 4096); //BM led off
+    statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
+    statezapdown = ZAP_MOVE_BOT;
+    statez = 1;
+    statezl = 0;
+  } else if (command == "CMD:BADMOTIVATOR") {
+    BadMotivatorUp();
+    pwm0.setPWM(9, 4096, 0); //BM led on
+    delay(bminterval); //wait for interval before lowering bad motivator
+    BadMotivatorDown();
+    pwm0.setPWM(9, 0, 4096); //BM led off
 
-      statebmup = BM_MOVE_TOP;
-      statebmdown = BM_MOVE_BOT;
-    case LIGHTSABER:
-      LightsaberUp();
-      delay(lsinterval); //wait for interval before lowering lightsaber
-      LightsaberDown();
+    statebmup = BM_MOVE_TOP;
+    statebmdown = BM_MOVE_BOT;
+  } else if (command == "CMD:LIGHTSABER") {
+    LightsaberUp();
+    delay(lsinterval); //wait for interval before lowering lightsaber
+    LightsaberDown();
 
     statelsup = LS_MOVE_TOP;
     statelsdown = LS_MOVE_BOT;
@@ -750,7 +749,7 @@ void processCommand(String command) {
     //open panels in sequence
   } else if (command == "CMD:TOGGLEMAGICPANEL") {
     //TODO: toggle magic panel on/off
-    // toggleMagicPanel();
+    toggleMagicPanel();
   } else if (command == "CMD:TOGGLEHOLOS") {
     toggleHolos();
   } else if (command.substring(0,20) == "CMD:CHANGEHOLOSCOLOR") { // ignore color name in command
@@ -762,11 +761,11 @@ void processCommand(String command) {
     executingCommand = false;
     return;
   }
-  printAck(DomeCommands(command));
+  printAck(command);
   executingCommand = false; //finished executing command
 }
 
-void printAck(DomeCommands command) {
+void printAck(String command) {
   // Serial.println("in printAck()");
   Serial.print("*** ");
   Serial.print(command);
