@@ -45,6 +45,9 @@ Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x42);
 
 uint8_t servonum = 0;
 boolean executingCommand = false; //tracks if a command is being executed
+boolean isPLedOn = false;
+boolean isLFLedOn = false;
+boolean isBMLedOn = false;
 #pragma endregion
 
 #pragma region PinSettings
@@ -153,6 +156,7 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define ZLEDCHANNEL 8
 #define BMLEDCHANNEL 9
 #define LFLEDCHANNEL 10
+#define PLEDCHANNEL 11
 // //pwm1 (0x41)
 #define LSPPCHANNEL 0 //PP1
 #define BMPPCHANNEL 1 //PP5
@@ -233,6 +237,8 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define BMLEDSERVOMAX  500
 #define LFLEDSERVOMIN 200
 #define LFLEDSERVOMAX 500
+#define PLEDSERVOMIN 200
+#define PLEDSERVOMAX 500
 
 //indicies for array
 #define ZAP 0
@@ -242,26 +248,27 @@ boolean executingCommand = false; //tracks if a command is being executed
 #define ZLED 4
 #define BMLED 5
 #define LFLED 6
-#define PP1 7
-#define PP5 8
-#define PP6 9
-#define P10 10
-#define P11 11
-#define P13 12
-#define HP1_X 13
-#define HP1_Y 14
-#define PP2 15
-#define P1 16
-#define P2 17
-#define P3 18
-#define P4 19
-#define P7 20
-#define HP2_X 21
-#define HP2_Y 22
-#define HP3_X 23
-#define HP3_Y 24
+#define PLED 7
+#define PP1 8
+#define PP5 9
+#define PP6 10
+#define P10 11
+#define P11 12
+#define P13 13
+#define HP1_X 14
+#define HP1_Y 15
+#define PP2 16
+#define P1 17
+#define P2 18
+#define P3 19
+#define P4 20
+#define P7 21
+#define HP2_X 22
+#define HP2_Y 23
+#define HP3_X 24
+#define HP3_Y 25
 
-int panelMap[25][5] = { // [panel name][pwm address][pwm channel][servo min][servo max]
+int panelMap[26][5] = { // [panel name][pwm address][pwm channel][servo min][servo max]
 //name      addr  channel         min               max
   {ZAP,     0x40, ZAPCHANNEL,     ZAPSERVOMIN,      ZAPSERVOMAX},
   {ZAPTURN, 0x40, ZAPTURNCHANNEL, ZAPTURNSERVOMIN,  ZAPTURNSERVOMAX},
@@ -270,6 +277,7 @@ int panelMap[25][5] = { // [panel name][pwm address][pwm channel][servo min][ser
   {ZLED,    0x40, ZLEDCHANNEL,    ZLEDSERVOMIN,     ZLEDSERVOMAX},
   {BMLED,   0x40, BMLEDCHANNEL,   BMLEDSERVOMIN,    BMLEDSERVOMAX},
   {LFLED,   0x40, LFLEDCHANNEL,   LFLEDSERVOMAX,    LFLEDSERVOMAX},
+  {PLED,    0x40, PLEDCHANNEL,    PLEDSERVOMAX,     PLEDSERVOMAX},
   {PP1,     0x41, LSPPCHANNEL,    LSSERVOMIN,       LSSERVOMAX}, //Lightsaber
   {PP5,     0x41, BMPPCHANNEL,    BMSERVOMIN,       BMSERVOMAX}, //Bad Motivator
   {PP6,     0x41, ZPPCHANNEL,     ZSERVOMIN,        ZSERVOMAX}, //Zapper
@@ -683,6 +691,7 @@ void receiveDataFromMainBoard() {
 //define actions for all possible commands from body to dome
 void processCommand(String command) {
   // Serial.println("in processCommand()");
+  //TODO: Can this be changed to a switch statement for better processing time?
   if (command == "CMD:PERISCOPE") {
       PeriscopeUp();
       if (PTopVal == LOW && PBotVal == HIGH) {
@@ -742,13 +751,41 @@ void processCommand(String command) {
     statelsup = LS_MOVE_TOP;
     statelsdown = LS_MOVE_BOT;
   } else if (command == "CMD:OVERLOAD") {
-    //open all panels, raise all mechanisms, magic panel on, holos red, play scream sound
+    //open all panels
+
+    delay(1000); // wait for all panels to open
+
+    //raise all mechanisms
+    PeriscopeUp();
+    LifeformUp();
+    DomeZapperUp();
+    DomeZapper();
+    BadMotivatorUp();
+    LightsaberUp();
+
+    toggleMagicPanel(); // magic panel on
+    setHoloColor(RED); // holos red
+    if (!holosOn) {
+      toggleHolos();
+    }
+    // play scream sound
     delay(overloadinterval);
-    //holos normal, magic panel off, lower all mechanisms, close all panels
+    setHoloColor(WHITE); // holos normal
+    toggleMagicPanel(); // magic panel off
+
+    // lower all mechanisms
+    PeriscopeDown();
+    LifeformDown();
+    DomeZapperDown();
+    BadMotivatorDown();
+    LightsaberDown();
+    delay(1000); // wait for all mechanisms to go down
+    
+    //close all panels
+
   } else if (command == "CMD:PANELWAVE") {
-    //open panels in sequence
+    panelWave(); // open panels in sequence
   } else if (command == "CMD:TOGGLEMAGICPANEL") {
-    //TODO: toggle magic panel on/off
     toggleMagicPanel();
   } else if (command == "CMD:TOGGLEHOLOS") {
     toggleHolos();
@@ -1003,6 +1040,7 @@ void ZapLed() {
   }
 }
 
+
 void PeriscopeUp() { //button tirggered Lift periscope, flash lights, rotate back and forwards, when button triggered again lower again in home position turn off lights
   switch (statepup) {
     case P_MOVE_TOP:
@@ -1010,6 +1048,7 @@ void PeriscopeUp() { //button tirggered Lift periscope, flash lights, rotate bac
         digitalWrite(PIN1, HIGH); //turn the dc motor on
         digitalWrite(PIN2, LOW);
         statepup = P_TOP;
+        togglePLed();
       }
       break;
     case P_TOP:
@@ -1037,6 +1076,7 @@ void PeriscopeDown() { // this function lowers the periscope
         pwm0.setPWM(11, 0, 4096); // sets the led LOW from the PCA9685
         digitalWrite(PIN1, LOW); //turn the dc motor on
         digitalWrite(PIN2, LOW);
+        togglePLed();
       }
       break;
   }
@@ -1073,6 +1113,14 @@ void PeriscopeTurn() { // turn the periscope back and forwards
   }
 }
 
+void togglePLed() {
+  if (isPLedOn) {
+    pwm0.setPWM(PLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
+  } else {
+    pwm0.setPWM(PLEDCHANNEL, 4096, 0); // sets the led HIGH from the PCA9685
+  }
+}
+
 
 void LifeformUp() {
   switch (statelfup) {
@@ -1084,6 +1132,7 @@ void LifeformUp() {
         digitalWrite(LFIN1, HIGH); //turn the dc motor on
         digitalWrite(LFIN2, LOW);
         statelfup = LF_TOP;
+        toggleLFLed();
       }
       break;
     case LF_TOP:
@@ -1111,6 +1160,7 @@ void LifeformDown() {
         if (digitalRead(LFBot) == LOW && digitalRead(LFTop) == HIGH) {
           pwm2.setPWM(0, 0, LFSERVOMIN); // close the pie panel
         }
+        toggleLFLed();
       }
       break;
   }
@@ -1148,6 +1198,14 @@ void LFTurn() {
   }
 }
 
+void toggleLFLed() {
+  if (isLFLedOn) {
+    pwm0.setPWM(LFLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
+  } else {
+    pwm0.setPWM(LFLEDCHANNEL, 4096, 0); // sets the led HIGH from the PCA9685
+  }
+}
+
 
 void BadMotivatorUp() {
   switch (statebmup) {
@@ -1161,6 +1219,7 @@ void BadMotivatorUp() {
         Serial.println("BM motor on");
         digitalWrite(BMIN2, LOW);
         statebmup = BM_TOP;
+        toggleBadMotivatorLed();
       }
       break;
     case BM_TOP:
@@ -1191,8 +1250,17 @@ void BadMotivatorDown() {
         if (digitalRead(BMBot) == LOW && digitalRead(BMTop) == HIGH) {
           pwm1.setPWM(1, 0, BMSERVOMIN); // close the pie panel
         }
+        toggleBadMotivatorLed();
       }
       break;
+  }
+}
+
+void toggleBadMotivatorLed() {
+  if (isBMLedOn) {
+    pwm0.setPWM(BMLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
+  } else {
+    pwm0.setPWM(BMLEDCHANNEL, 4096, 0); // sets the led HIGH from the PCA9685
   }
 }
 
