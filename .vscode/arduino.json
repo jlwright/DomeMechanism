@@ -3,5 +3,5 @@
     "board": "arduino:avr:mega",
     "sketch": "DomeMechanism.ino",
     "programmer": "arduinoisp",
-    "port": "COM9"
+    "port": "COM4"
 }

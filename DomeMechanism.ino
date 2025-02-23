@@ -402,6 +402,18 @@ void setup() {
   pwm2.begin();
   pwm2.setPWMFreq(PWM_FREQ);
 
+  // set defaults for motor states
+  statezapup = ZAP_MOVE_TOP;
+  statezapdown = ZAP_BOT;
+  statepup = P_MOVE_TOP;
+  statepdown = P_BOT;
+  statelfup = LF_MOVE_TOP;
+  statelfdown = LF_BOT;
+  statebmup = BM_MOVE_TOP;
+  statebmdown = BM_BOT;
+  statelsup = LS_MOVE_TOP;
+  statelsdown = LS_BOT;
+
   //output pins
   pinMode(PIN1, OUTPUT);
   pinMode(PIN2, OUTPUT);
@@ -458,9 +470,26 @@ void loop() {
   //reset timers
   currentMillis = millis();
   readlimits(); //read and store the limit switches values High or Low, function further down in code
+  SerialOut();
   if (!executingCommand && Serial.available() > 0) { //if not already executing a command and Serial data is available
     receiveDataFromMainBoard(); //reads any data in serial
   }
+
+  Serial.print("in loop() statelfup = "); Serial.println(statelfup);
+  Serial.print("in loop() statelfdown = "); Serial.println(statelfdown);
+
+  // PeriscopeUp();
+  // BadMotivatorUp();
+  // DomeZapperUp();
+  // LightsaberUp();
+  Serial.println("***LifeformUp()");
+  LifeformUp();
+  SerialOut();
+  delay(5000);
+  Serial.println("***LifeformDown()");
+  LifeformDown();
+  SerialOut();
+  delay(5000);
 
   //Button functionality
   // buttonState = digitalRead(buttonPin); // main trigger for button inputs
@@ -1141,7 +1170,7 @@ void PeriscopeDown() { // this function lowers the periscope
   switch (statepdown) {
     case P_MOVE_BOT:
       #ifdef DOMEMECH_DEBUG
-        Serial.println("Moving the periscope to the top.");
+        Serial.println("Moving the periscope to the bottom.");
       #endif
       if (PBotVal != LOW) {
         pwm0.setPWM(PLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
@@ -1217,6 +1246,8 @@ void togglePLed() {
 
 
 void LifeformUp() {
+  Serial.print("statelfup = "); Serial.println(statelfup);
+  Serial.print("statelfdown = "); Serial.println(statelfdown);
   switch (statelfup) {
     case LF_MOVE_TOP:
       #ifdef DOMEMECH_DEBUG
@@ -1232,6 +1263,9 @@ void LifeformUp() {
         digitalWrite(LFIN1, HIGH); //turn the dc motor on
         digitalWrite(LFIN2, LOW);
         statelfup = LF_TOP;
+        statelfdown = LF_MOVE_BOT;
+        Serial.print("statelfup = "); Serial.println(statelfup);
+        Serial.print("statelfdown = "); Serial.println(statelfdown);
         toggleLFLed();
       }
       break;
@@ -1248,6 +1282,8 @@ void LifeformUp() {
 }
 
 void LifeformDown() {
+  Serial.print("statelfup = "); Serial.println(statelfup);
+  Serial.print("statelfdown = "); Serial.println(statelfdown);
   switch (statelfdown) {
     case LF_MOVE_BOT:
       #ifdef DOMEMECH_DEBUG
@@ -1257,6 +1293,9 @@ void LifeformDown() {
         digitalWrite(LFIN1, LOW); //turn the dc motor on
         digitalWrite(LFIN2, HIGH);
         statelfdown = LF_BOT;
+        statelfup = LF_MOVE_TOP;
+        Serial.print("statelfup = "); Serial.println(statelfup);
+        Serial.print("statelfdown = "); Serial.println(statelfdown);
       }
       break;
     case LF_BOT:
@@ -1264,7 +1303,7 @@ void LifeformDown() {
         Serial.println("Lifeform scanner is at the bottom.");
       #endif
       if (LFBotVal == LOW) {
-        digitalWrite(LFIN1, LOW); //turn the dc motor on
+        digitalWrite(LFIN1, LOW); //turn the dc motor off
         digitalWrite(LFIN2, LOW);
         if (digitalRead(LFBot) == LOW && digitalRead(LFTop) == HIGH) {
           #ifdef DOMEMECH_DEBUG
