@@ -105,6 +105,9 @@ boolean isBMLedOn = false;
   #define NUMPIXELS_MP 40 // Number of pixels in the magic panel
   Adafruit_NeoPixel pixelsHP(NUMPIXELS_HP, PIN_HP, NEO_GRB + NEO_KHZ800);
   Adafruit_NeoPixel pixelsMP(NUMPIXELS_MP, PIN_MP, NEO_GRB + NEO_KHZ800);
+  Adafruit_PWMServoDriver domePwm0 = Adafruit_PWMServoDriver();
+  Adafruit_PWMServoDriver domePwm1 = Adafruit_PWMServoDriver();
+  Adafruit_PWMServoDriver domePwm2 = Adafruit_PWMServoDriver();
 
   // Color settings for pixels (R,G,B)
   #define RED (255,0,0,0)
@@ -114,17 +117,6 @@ boolean isBMLedOn = false;
   #define LIGHTBLUE (0,0,40,255)
   #define PURPLE (255,255,0,0)
   #define PINK (40,0,0,255)
-
-  //TODO: change this to array
-  // map<string, Color> colorMap = {
-  //   {"RED", RED},
-  //   {"GREEN", GREEN},
-  //   {"BLUE", BLUE},
-  //   {"WHITE", WHITE},
-  //   {"LIGHTBLUE", LIGHTBLUE},
-  //   {"PURPLE", PURPLE},
-  //   {"PINK", PINK}
-  // };
 
   const char* colorNames[] = {
     "RED",
@@ -136,13 +128,20 @@ boolean isBMLedOn = false;
     "PINK"
   };
 
+  const int HOLO_DELAY = 20000; //up to 20 second delay
+  const int HOLO_SERVO_CTR = 300;
+
+  uint32_t holoFrontRandomTime = 0;
+  uint32_t holoBackRandomTime = 0;
+  uint32_t holoTopRandomTime = 0;
   int holoBrightness = 5; // Brightness of holos
   uint32_t holoColor = WHITE; // default holo color to WHITE
-  boolean holosOn = true; // default holos to on
+  boolean areHolosOn = true; // default holos to on
+  boolean isHoloAutomationOn = false;
 
   int magicPanelBrightness = 5; // brightness of magic panel
   uint32_t magicPanelColor = RED; // default magic panel color
-  boolean magicPanelOn = false; // defautl magic panel to off
+  boolean isMagicPanelOn = false; // defautl magic panel to off
 #endif
 
 #pragma endregion
@@ -765,8 +764,8 @@ void processCommand(String command) {
 
     toggleMagicPanel(); // magic panel on
     setHoloColor(RED); // holos red
-    if (!holosOn) {
-      toggleHolos();
+    if (!areHolosOn) {
+      toggleHoloLights();
     }
     // play scream sound
     delay(overloadinterval);
@@ -787,9 +786,11 @@ void processCommand(String command) {
     panelWave(); // open panels in sequence
   } else if (command == "CMD:TOGGLEMAGICPANEL") {
     toggleMagicPanel();
-  } else if (command == "CMD:TOGGLEHOLOS") {
-    toggleHolos();
-  } else if (command.substring(0,20) == "CMD:CHANGEHOLOSCOLOR") { // ignore color name in command
+  } else if (command == "CMD:TOGGLEHOLOLIGHTS") {
+    toggleHoloLights();
+  } else if (command == "CMD:TOGGLEHOLOAUTOMATION") {
+    toggleHoloAutomation();
+  } else if (command.substring(0,20) == "CMD:CHANGEHOLOCOLOR") { // ignore color name in command
     String color = command.substring(20);
     holoColor = getColorFromString(color);
     setHoloColor(holoColor);
@@ -828,19 +829,149 @@ int getColorFromString(String strColor) {
   return 0;
 }
 
-void toggleHolos() {
-  if (holosOn) { // if holos are currently on
+void toggleHoloLights() {
+  if (areHolosOn) { // if holos are currently on
     pixelsHP.clear();
-    holosOn = false;
+    areHolosOn = false;
   } else { // if holos are currently off
     setHoloColor(WHITE);
-    holosOn = true;
+    areHolosOn = true;
   }
 }
 
 void setHoloColor(int holoColor) {
   pixelsHP.fill(holoColor, 0, NUMPIXELS_HP);
   pixelsHP.show();   // Send the updated pixel colors to the hardware.
+}
+
+void moveHoloServo(Adafruit_PWMServoDriver pwmNum, int pwmPin, int pulse) {
+  pwmNum.setPWM(pwmPin, 0, pulse);
+}
+
+void toggleHoloAutomation() {
+  if (isHoloAutomationOn) {
+    isHoloAutomationOn = false;
+    turnHoloAutomationOff();
+  } else {
+    isHoloAutomationOn = true;
+    turnHoloAutomationOn();
+  }
+}
+
+void turnHoloAutomationOn() {
+  currentMillis = millis();
+  if (!areHolosOn) {
+    toggleHoloLights();
+  }
+
+  if (currentMillis > holoFrontRandomTime) {
+    holoFrontRandomTime = currentMillis + random(HOLO_DELAY);
+    moveHoloServo(domePwm1, HP1XCHANNEL, random(HP1_XMIN,HP1_XMAX));
+    moveHoloServo(domePwm1, HP1YCHANNEL, random(HP1_YMIN,HP1_YMAX));
+  }
+  if (currentMillis > holoBackRandomTime) {
+    holoBackRandomTime = currentMillis + random(HOLO_DELAY);
+    moveHoloServo(domePwm2, HP2XCHANNEL, random(HP2_XMIN,HP2_XMAX));
+    moveHoloServo(domePwm2, HP2YCHANNEL, random(HP2_YMIN,HP2_YMAX));
+  }
+  if (currentMillis > holoTopRandomTime) {
+    holoTopRandomTime = currentMillis + random(HOLO_DELAY);
+    moveHoloServo(domePwm2, HP3XCHANNEL, random(HP3_XMIN,HP3_XMAX));
+    moveHoloServo(domePwm2, HP3YCHANNEL, random(HP3_YMIN,HP3_YMAX));
+  }
+
+  // switch (holoprojector) {
+  //   case HOLO_FRONT:   
+  //     holoFrontRandomTime = currentMillis + random(HOLO_DELAY);
+  //     //TODO:  Determine range of Holoprojector X/Y better
+  //         //hpY=random(80,120);
+  //         //hpX=random(80,120); 
+  //     moveHoloServo(HOLO_FRONT_X_PWM_PIN, random(HOLO_FRONT_X_SERVO_MIN,HOLO_FRONT_X_SERVO_MAX));
+  //     moveHoloServo(HOLO_FRONT_Y_PWM_PIN, random(HOLO_FRONT_Y_SERVO_MIN,HOLO_FRONT_Y_SERVO_MAX));
+  //     int ledState = random(1,10);
+  //     switch(ledState) {
+  //       case 3:
+  //           holoLightFrontStatus = HOLO_LED_OFF;
+  //           holoLightsOff();
+  //           break;
+  //       case 7:
+  //           holoLightFrontStatus = HOLO_LED_ON;
+  //           holoLightsOn();
+  //           break;
+  //       default:
+  //           holoLightFrontStatus = HOLO_LED_FLICKER;
+  //           break;
+  //     }
+  //     if (holoLightFrontStatus == HOLO_LED_FLICKER) {
+  //         holoLightFlicker(HOLO_FRONT_RED_PWM_PIN, HOLO_FRONT_GREEN_PWM_PIN, HOLO_FRONT_BLUE_PWM_PIN);
+  //     }        
+  //     break;
+  //   case HOLO_BACK:
+  //     if (currentMillis > holoBackRandomTime) {  
+  //       holoBackRandomTime = currentMillis + random(HOLO_DELAY*1.5);
+  //       //TODO:  Determine range of Holoprojector X/Y better
+  //           //hpY=random(80,120);
+  //           //hpX=random(80,120); 
+  //       moveHoloServo(HOLO_BACK_X_PWM_PIN, random(HOLO_BACK_X_SERVO_MIN,HOLO_BACK_X_SERVO_MAX));
+  //       moveHoloServo(HOLO_BACK_Y_PWM_PIN, random(HOLO_BACK_Y_SERVO_MIN,HOLO_BACK_Y_SERVO_MAX));
+  //       int ledState = random(1,10);
+  //       switch(ledState) {
+  //         case 4:
+  //           holoLightBackStatus = HOLO_LED_OFF;
+  //           holoLightsOff();
+  //           break;
+  //         case 8:
+  //           holoLightBackStatus = HOLO_LED_ON;
+  //           holoLightsOn();
+  //           break;
+  //         default:
+  //           holoLightBackStatus = HOLO_LED_FLICKER;
+  //           break;
+  //       }
+  //     }
+  //     if (holoLightBackStatus == HOLO_LED_FLICKER) {
+  //       holoLightFlicker(HOLO_BACK_RED_PWM_PIN, HOLO_BACK_GREEN_PWM_PIN, HOLO_BACK_BLUE_PWM_PIN);
+  //     }        
+  //     break;
+  //   case HOLO_TOP:  
+  //     if (currentMillis > holoTopRandomTime) {  
+  //       holoTopRandomTime = currentMillis + random(HOLO_DELAY*1.5);
+  //       //TODO:  Determine range of Holoprojector X/Y better
+  //           //hpY=random(80,120);
+  //           //hpX=random(80,120); 
+  //       moveHoloServo(HOLO_TOP_X_PWM_PIN, random(HOLO_TOP_X_SERVO_MIN,HOLO_TOP_X_SERVO_MAX));
+  //       moveHoloServo(HOLO_TOP_Y_PWM_PIN, random(HOLO_TOP_Y_SERVO_MIN,HOLO_TOP_Y_SERVO_MAX));
+  //       int ledState = random(1,10);
+  //       switch(ledState) {
+  //         case 5:
+  //           holoLightTopStatus = HOLO_LED_OFF;
+  //           holoLightsOff();
+  //           break;
+  //         case 8:
+  //           holoLightTopStatus = HOLO_LED_ON;
+  //           holoLightsOn();
+  //           break;
+  //         default:
+  //           holoLightTopStatus = HOLO_LED_FLICKER;
+  //           break;
+  //       }
+  //     }
+  //     if (holoLightTopStatus == HOLO_LED_FLICKER) {
+  //       holoLightFlicker(HOLO_TOP_RED_PWM_PIN, HOLO_TOP_GREEN_PWM_PIN, HOLO_TOP_BLUE_PWM_PIN);
+  //     }        
+  //     break;
+  // }
+}
+
+void turnHoloAutomationOff() {
+  moveHoloServo(domePwm1, HP1XCHANNEL, HOLO_SERVO_CTR);
+  moveHoloServo(domePwm1, HP1YCHANNEL, HOLO_SERVO_CTR);
+
+  moveHoloServo(domePwm2, HP2XCHANNEL, HOLO_SERVO_CTR);
+  moveHoloServo(domePwm2, HP2YCHANNEL, HOLO_SERVO_CTR);
+
+  moveHoloServo(domePwm2, HP3XCHANNEL, HOLO_SERVO_CTR);
+  moveHoloServo(domePwm2, HP3YCHANNEL, HOLO_SERVO_CTR);
 }
 #pragma endregion
 
@@ -849,12 +980,12 @@ void setHoloColor(int holoColor) {
 //                          Magic Panel Functions
 // =======================================================================================
 void toggleMagicPanel() {
-  if (magicPanelOn) { // if magic panel is currently on
+  if (isMagicPanelOn) { // if magic panel is currently on
     pixelsMP.clear();
-    magicPanelOn = false;
+    isMagicPanelOn = false;
   } else { // if magic panel is currently off
     setMagicPanelColor(RED);
-    magicPanelOn = true;
+    isMagicPanelOn = true;
   }
 }
 
@@ -864,9 +995,9 @@ void setMagicPanelColor(int magicPanelColor) {
 }
 #pragma endregion
 
-#pragma region DomePanelFunctions
+#pragma region DomeFunctions
 // =======================================================================================
-//                          Dome Panel Functions
+//                          Dome Functions
 // =======================================================================================
 void panelWave() {
   //Panel order 10, 11, 13, 1, 2, 3, 4
@@ -924,6 +1055,77 @@ int getPwmAddress(int panelName) {
 int getPwmChannel(int panelName) {
   return panelMap[panelName][2];
 }
+
+// void automateDome() {
+//   //TODO: review automate dome code, add auto home?
+//   //automate dome movement
+//   if (isAutomateDomeOn) {
+//     long rndNum;
+//     int domeSpeed;
+//     if (domeStatus == 0) { // Dome is currently stopped - prepare for a future turn
+//       if (domeTargetPosition == 0) { // Dome is currently in the home position - prepare to turn away
+//         domeStartTurnTime = millis() + (random(3, 10) * 1000);
+//         rndNum = random(5,354);
+//         domeTargetPosition = rndNum;  // set the target position to a random degree of a 360 circle - shaving off the first and last 5 degrees
+//         if (domeTargetPosition < 180) { // Turn the dome in the positive direction
+//           domeTurnDirection = 1;
+//           domeStopTurnTime = domeStartTurnTime + ((domeTargetPosition / 360) * time360DomeTurnRight);
+//         } else { // Turn the dome in the negative direction
+//           domeTurnDirection = -1;
+//           domeStopTurnTime = domeStartTurnTime + (((360 - domeTargetPosition) / 360) * time360DomeTurnLeft);
+//         }
+//       } else { // Dome is not in the home position - send it back to home
+//         domeStartTurnTime = millis() + (random(3, 10) * 1000);
+//         if (domeTargetPosition < 180) {
+//           domeTurnDirection = -1;
+//           domeStopTurnTime = domeStartTurnTime + ((domeTargetPosition / 360) * time360DomeTurnLeft);
+//         } else {
+//           domeTurnDirection = 1;
+//           domeStopTurnTime = domeStartTurnTime + (((360 - domeTargetPosition) / 360) * time360DomeTurnRight);
+//         }
+//         domeTargetPosition = 0;
+//       }
+//       domeStatus = 1;  // Set dome status to preparing for a future turn
+//       #ifdef SHADOW_DEBUG
+//         output += "Dome Automation: Initial Turn Set\r\n";
+//         output +=  "Current Time: ";
+//         output +=  millis();
+//         output += "\r\n Next Start Time: ";
+//         output += domeStartTurnTime;
+//         output += "\r\n";
+//         output += "Next Stop Time: ";
+//         output += domeStopTurnTime;
+//         output += "\r\n";          
+//         output += "Dome Target Position: ";
+//         output += domeTargetPosition;
+//         output += "\r\n";          
+//       #endif
+//     }
+//     if (domeStatus == 1) { // Dome is prepared for a future move - start the turn when ready
+//       if (domeStartTurnTime < millis()) {
+//         domeStatus = 2; 
+//         #ifdef SHADOW_DEBUG
+//           output += "Dome Automation: Ready To Start Turn\r\n";
+//         #endif
+//       }
+//     }
+//     if (domeStatus == 2) { // Dome is now actively turning until it reaches its stop time
+//       if (domeStopTurnTime > millis()) {
+//         domeSpeed = domeAutoSpeed * domeTurnDirection;
+//         SyR->motor(domeSpeed);
+//         #ifdef SHADOW_DEBUG
+//           output += "Turning Now!!\r\n";
+//         #endif
+//       } else { // turn completed - stop the motor
+//         domeStatus = 0;
+//         SyR->stop();
+//         #ifdef SHADOW_DEBUG
+//           output += "STOP TURN!!\r\n";
+//         #endif
+//       }
+//     }
+//   }
+// }
 #pragma endregion
 
 #pragma region MechFunctions
