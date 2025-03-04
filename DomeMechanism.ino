@@ -27,7 +27,6 @@
 */
 
 #pragma region Includes
-//Libraries to include
 #include <Wire.h>
 //#include <VarSpeedServo.h>
 #include <math.h>
@@ -89,7 +88,9 @@ boolean isBMLedOn = false;
 #pragma endregion
 
 #pragma region AppSettings
-// Define constants and values to stay the same
+#define DOMEMECH_DEBUG       //uncomment this for console DEBUG output
+#define DOMEMECH_VERBOSE     //uncomment this for console VERBOSE output
+
 #define SERIAL_PORT_SPEED 115200 // Define the port output serial communication speed
 #define PWM_FREQ 50
 
@@ -395,7 +396,6 @@ int ledState2 = LOW;          // the current state of the output pin
 
 void setup() {
   Serial.begin(SERIAL_PORT_SPEED);// serial communication
-  Serial.println("***Dome board ready***\n");
 
   // Initialize holos and magic panel and set to default colors
   pixelsHP.begin();
@@ -406,11 +406,23 @@ void setup() {
   pixelsMP.clear();
 
   pwm0.begin();
-  pwm0.setPWMFreq(PWM_FREQ); //  standard for analog servos
+  pwm0.setPWMFreq(PWM_FREQ); // standard for analog servos
   pwm1.begin();
   pwm1.setPWMFreq(PWM_FREQ);
   pwm2.begin();
   pwm2.setPWMFreq(PWM_FREQ);
+
+  // set defaults for motor states
+  statezapup = ZAP_MOVE_TOP;
+  statezapdown = ZAP_BOT;
+  statepup = P_MOVE_TOP;
+  statepdown = P_BOT;
+  statelfup = LF_MOVE_TOP;
+  statelfdown = LF_BOT;
+  statebmup = BM_MOVE_TOP;
+  statebmdown = BM_BOT;
+  statelsup = LS_MOVE_TOP;
+  statelsdown = LS_BOT;
 
   //output pins
   pinMode(PIN1, OUTPUT);
@@ -456,20 +468,38 @@ void setup() {
   digitalWrite(LFIN2, LOW);
   //digitalWrite(ledPin, LOW); // set the led off
 
-  //Set the servos to their start positions
-  servoSetup(); // view function and end of code
-  // SerialOut();
+  servoSetup(); // Set the servos to their start positions
+  // SerialOut(); // uncomment for value debugging
   delay(1000); // wait for everything to get to their positions on power up
+  #ifdef DOMEMECH_VERBOSE
+    Serial.println("Dome board is ready.");
+  #endif
 }
 
 void loop() {
-  // Serial.println("in loop()");
   //reset timers
   currentMillis = millis();
   readlimits(); //read and store the limit switches values High or Low, function further down in code
+  SerialOut();
   if (!executingCommand && Serial.available() > 0) { //if not already executing a command and Serial data is available
     receiveDataFromMainBoard(); //reads any data in serial
   }
+
+  Serial.print("in loop() statelfup = "); Serial.println(statelfup);
+  Serial.print("in loop() statelfdown = "); Serial.println(statelfdown);
+
+  // PeriscopeUp();
+  // BadMotivatorUp();
+  // DomeZapperUp();
+  // LightsaberUp();
+  Serial.println("***LifeformUp()");
+  LifeformUp();
+  SerialOut();
+  delay(5000);
+  Serial.println("***LifeformDown()");
+  LifeformDown();
+  SerialOut();
+  delay(5000);
 
   //Button functionality
   // buttonState = digitalRead(buttonPin); // main trigger for button inputs
@@ -628,6 +658,9 @@ void loop() {
 }
 
 void readlimits() { //reads limit swtiches and stores values for compare to end stops in the main loop
+  #ifdef DOMEMECH_VERBOSE
+    Serial.println("Reading limit switches.");
+  #endif
   PBotVal = digitalRead(PBot);
   PTopVal = digitalRead(PTop);
   BMTopVal = digitalRead(BMTop);
@@ -641,62 +674,72 @@ void readlimits() { //reads limit swtiches and stores values for compare to end 
 }
 
 void servoSetup() {
-  // Serial.println("in servoSetup()");
+  #ifdef DOMEMECH_VERBOSE
+    Serial.println("Setting servo start positions.");
+  #endif
   //ServoStartPositions();
-  pwm0.setPWM(4, 0, ZAPSERVOMIN); //Zapper arm
-  pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //Zapper arm turn
-  pwm0.setPWM(6, 0, PTURNSERVOMIN); //Periscope turn
-  pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn
-  pwm0.setPWM(8, 0, 4096); //Zapper LED low
-  pwm0.setPWM(9, 0, 4096); //Bad Motiviator LED low
-  pwm0.setPWM(10, 0, 4096); //Lifeform LED low
-  pwm0.setPWM(11, 0, 4096); //Periscope LED low
+  pwm0.setPWM(ZAPCHANNEL, 0, ZAPSERVOMIN); //Zapper arm
+  pwm0.setPWM(ZAPTURNCHANNEL, 0, ZAPTURNSERVOMIN); //Zapper arm turn
+  pwm0.setPWM(PTURNCHANNEL, 0, PTURNSERVOMIN); //Periscope turn
+  pwm0.setPWM(LFTURNCHANNEL, 0, LFTURNSERVOMIN); //Lifeform turn
+  pwm0.setPWM(ZLEDCHANNEL, 0, 4096); //Zapper LED low
+  pwm0.setPWM(BMLEDCHANNEL, 0, 4096); //Bad Motiviator LED low
+  pwm0.setPWM(LFLEDCHANNEL, 0, 4096); //Lifeform LED low
+  pwm0.setPWM(PLEDCHANNEL, 0, 4096); //Periscope LED low
 
-  pwm1.setPWM(0,LSSERVOMIN,LSSERVOMAX); //PP1
-  pwm1.setPWM(1,BMSERVOMIN,BMSERVOMAX); //PP5
-  pwm1.setPWM(2,ZSERVOMIN,ZSERVOMAX); //PP6
-  pwm1.setPWM(3,P10MIN,P10MAX); //P10
-  pwm1.setPWM(4,P11MIN,P11MAX); //P11
-  pwm1.setPWM(5,P13MIN,P13MAX); //P13
-  pwm1.setPWM(6,HP1_XMIN,HP1_XMAX); //HP1_X
-  pwm1.setPWM(7,HP1_YMIN,HP1_YMAX); //HP1_Y
+  pwm1.setPWM(LSPPCHANNEL,LSSERVOMIN,LSSERVOMAX); //PP1
+  pwm1.setPWM(BMPPCHANNEL,BMSERVOMIN,BMSERVOMAX); //PP5
+  pwm1.setPWM(ZPPCHANNEL,ZSERVOMIN,ZSERVOMAX); //PP6
+  pwm1.setPWM(P10CHANNEL,P10MIN,P10MAX); //P10
+  pwm1.setPWM(P11CHANNEL,P11MIN,P11MAX); //P11
+  pwm1.setPWM(P13CHANNEL,P13MIN,P13MAX); //P13
+  pwm1.setPWM(HP1XCHANNEL,HP1_XMIN,HP1_XMAX); //HP1_X
+  pwm1.setPWM(HP1YCHANNEL,HP1_YMIN,HP1_YMAX); //HP1_Y
 
-  pwm2.setPWM(0,LFSERVOMIN,LFSERVOMAX); //PP2
-  pwm1.setPWM(1,P1MIN,P1MAX); //P1
-  pwm1.setPWM(2,P2MIN,P2MAX); //P2
-  pwm1.setPWM(3,P3MIN,P3MAX); //P3
-  pwm1.setPWM(4,P4MIN,P4MAX); //P4
-  pwm1.setPWM(5,P7MIN,P7MAX); //P7
-  pwm2.setPWM(6,HP2_XMIN,HP2_XMAX); //HP2_X
-  pwm2.setPWM(7,HP2_YMIN,HP2_YMAX); //HP2_Y
-  pwm2.setPWM(8,HP3_XMIN,HP3_XMAX); //HP3_X
-  pwm2.setPWM(9,HP3_YMIN,HP3_YMAX); //HP3_Y
+  pwm2.setPWM(LFPPCHANNEL,LFSERVOMIN,LFSERVOMAX); //PP2
+  pwm1.setPWM(P1CHANNEL,P1MIN,P1MAX); //P1
+  pwm1.setPWM(P2CHANNEL,P2MIN,P2MAX); //P2
+  pwm1.setPWM(P3CHANNEL,P3MIN,P3MAX); //P3
+  pwm1.setPWM(P4CHANNEL,P4MIN,P4MAX); //P4
+  pwm1.setPWM(P7CHANNEL,P7MIN,P7MAX); //P7
+  pwm2.setPWM(HP2XCHANNEL,HP2_XMIN,HP2_XMAX); //HP2_X
+  pwm2.setPWM(HP2YCHANNEL,HP2_YMIN,HP2_YMAX); //HP2_Y
+  pwm2.setPWM(HP3XCHANNEL,HP3_XMIN,HP3_XMAX); //HP3_X
+  pwm2.setPWM(HP3YCHANNEL,HP3_YMIN,HP3_YMAX); //HP3_Y
   // Serial.println("done setting up pwm servos");
 }
 
 #pragma region CommunicationFunctions
 void receiveDataFromMainBoard() {
-  // Serial.println("in receiveDataFromMainBoard()");
+  #ifdef DOMEMECH_VERBOSE
+    Serial.println("Receiving serial data from main board");
+  #endif
   String command = Serial.readString(); //pull string from Serial
   if (command.startsWith("CMD:", 0)) {
     executingCommand = true;
-    // command = command.substring(4); // remove "CMD:" from the string
     processCommand(command); // get last char of command and parse to int
   } else {
-    Serial.println("This is not a dome command");
+    #ifdef DOMEMECH_DEBUG
+      Serial.println("This is not a dome command");
+    #endif
   }
 }
 
 //define actions for all possible commands from body to dome
 void processCommand(String command) {
-  // Serial.println("in processCommand()");
+  #ifdef DOMEMECH_VERBOSE
+    Serial.println("in processCommand()");
+  #endif
+  #ifdef DOMEMECH_DEBUG
+    Serial.println("Processing " + command + " command.");
+  #endif
   //TODO: Can this be changed to a switch statement for better processing time?
   if (command == "CMD:PERISCOPE") {
       PeriscopeUp();
       if (PTopVal == LOW && PBotVal == HIGH) {
         PeriscopeTurn();
       }
-      pwm0.setPWM(6, 0, PTURNSERVOMIN); //periscope turn to original lift position
+      pwm0.setPWM(PTURNCHANNEL, 0, PTURNSERVOMIN); //periscope turn to original lift position
       PeriscopeDown();
 
     statepup = P_MOVE_TOP;
@@ -705,15 +748,15 @@ void processCommand(String command) {
   } else if (command == "CMD:LIFEFORMSCANNER") {
     LifeformUp();
     if (currentMillis - lfledpreviousmillis >= lfledinterval) {
-      pwm0.setPWM(10, 4096 , 0); //Lifeform LED HIGH
+      pwm0.setPWM(LFLEDCHANNEL, 4096 , 0); //Lifeform LED HIGH
       lfledpreviousmillis = currentMillis;
     } else {
-      pwm0.setPWM(10, 0, 4096); //Lifeform LED LOW
+      pwm0.setPWM(LFLEDCHANNEL, 0, 4096); //Lifeform LED LOW
     }
     if (LFTopVal == LOW && LFBotVal == HIGH) {
       LFTurn();
     }
-    pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn to original position
+    pwm0.setPWM(LFTURNCHANNEL, 0, LFTURNSERVOMIN); //Lifeform turn to original position
     LifeformDown();
 
     statelfup = LF_MOVE_TOP;
@@ -724,9 +767,9 @@ void processCommand(String command) {
     if (ZTopVal == LOW && ZBotVal == HIGH) { //if zapper is raised
       DomeZapper();
     }
-    pwm0.setPWM(5, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
-    pwm0.setPWM(4, 0, ZAPSERVOMIN); //lower the arm
-    pwm0.setPWM(8, 0, 4096); // sets the led LOW
+    pwm0.setPWM(ZAPTURNCHANNEL, 0, ZAPTURNSERVOMIN); //turn the zapper arm to original position
+    pwm0.setPWM(ZAPCHANNEL, 0, ZAPSERVOMIN); //lower the arm
+    pwm0.setPWM(ZLEDCHANNEL, 0, 4096); // sets the led LOW
     DomeZapperDown();
 
     statezapup = ZAP_MOVE_TOP;  // reset states for next lift sequence
@@ -735,10 +778,10 @@ void processCommand(String command) {
     statezl = 0;
   } else if (command == "CMD:BADMOTIVATOR") {
     BadMotivatorUp();
-    pwm0.setPWM(9, 4096, 0); //BM led on
+    pwm0.setPWM(BMLEDCHANNEL, 4096, 0); //BM led on
     delay(bminterval); //wait for interval before lowering bad motivator
     BadMotivatorDown();
-    pwm0.setPWM(9, 0, 4096); //BM led off
+    pwm0.setPWM(BMLEDCHANNEL, 0, 4096); //BM led off
 
     statebmup = BM_MOVE_TOP;
     statebmdown = BM_MOVE_BOT;
@@ -816,16 +859,17 @@ void printAck(String command) {
 //                          Holo Functions
 // =======================================================================================
 int getColorFromString(String strColor) {
-  // int n = sizeof(colorNames) / sizeof(colorNames[0]);
-  // auto ptr = find(colorNames, colorNames + n, strColor); // Using find() to get the pointer to the first occurence of value
-  // int idx = ptr - colorNames; // Getting index from pointer
-  
   for (int i = 0; i < sizeof(colorNames); i++) {
     if ((String)colorNames[i] = strColor) {
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Color string: " + strColor + ", colorNames index: " + i);
+      #endif
       return i;
     }
   }
-  Serial.println("Color name not Found!");
+  #ifdef DOMEMECH_DEBUG
+    Serial.println("Color name not Found!");
+  #endif
   return 0;
 }
 
@@ -834,12 +878,18 @@ void toggleHoloLights() {
     pixelsHP.clear();
     areHolosOn = false;
   } else { // if holos are currently off
+    #ifdef DOMEMECH_DEBUG
+      Serial.println("Holos are currently off, turning them on with default color.");
+    #endif
     setHoloColor(WHITE);
     areHolosOn = true;
   }
 }
 
 void setHoloColor(int holoColor) {
+  #ifdef DOMEMECH_DEBUG
+    Serial.println("Setting Holo color to " + *colorNames[holoColor]);
+  #endif
   pixelsHP.fill(holoColor, 0, NUMPIXELS_HP);
   pixelsHP.show();   // Send the updated pixel colors to the hardware.
 }
@@ -984,12 +1034,18 @@ void toggleMagicPanel() {
     pixelsMP.clear();
     isMagicPanelOn = false;
   } else { // if magic panel is currently off
+    #ifdef DOMEMECH_DEBUG
+      Serial.println("Magic Panel is currently off, turning it on.");
+    #endif
     setMagicPanelColor(RED);
     isMagicPanelOn = true;
   }
 }
 
 void setMagicPanelColor(int magicPanelColor) {
+  #ifdef DOMEMECH_DEBUG
+    Serial.println("Setting Holo color to " + *colorNames[magicPanelColor]);
+  #endif
   pixelsMP.fill(magicPanelColor, 0, NUMPIXELS_MP);
   pixelsMP.show();   // Send the updated pixel colors to the hardware.
 }
@@ -1000,8 +1056,11 @@ void setMagicPanelColor(int magicPanelColor) {
 //                          Dome Functions
 // =======================================================================================
 void panelWave() {
-  //Panel order 10, 11, 13, 1, 2, 3, 4
-  int panels[] = {P10, P11, P13, P1, P2, P3, P4};
+  //Panel order 10, 11, 13, 1, 2, 3, 4, PP2, PP1, PP6, PP5
+  #ifdef DOMEMECH_DEBUG
+    Serial.println("Waving movable dome panels.");
+  #endif
+  int panels[] = {P10, P11, P13, P1, P2, P3, P4, PP2, PP1, PP6, PP5};
   for (int i = 0; i < sizeof(panels); i++) {
     openPanel(panels[i]);
   }
@@ -1017,6 +1076,9 @@ void panelWave() {
 }
 
 void openPanel(int panelName) {
+  #ifdef DOMEMECH_DEBUG
+    Serial.println("Opening panel " + panelName);
+  #endif
   if (getPwmAddress(panelName) == 0x40) {
     pwm0.setPWM(getPwmChannel(panelName), 0, panelMap[panelName][4]);
   } else if (getPwmAddress(panelName) == 0x41) {
@@ -1027,6 +1089,9 @@ void openPanel(int panelName) {
 }
 
 void closePanel(int panelName) {
+  #ifdef DOMEMECH_DEBUG
+    Serial.println("Closing panel " + panelName);
+  #endif
   if (getPwmAddress(panelName) == 0x40) {
     pwm0.setPWM(getPwmChannel(panelName), 0, panelMap[panelName][3]);
   } else if (getPwmAddress(panelName) == 0x41) {
@@ -1037,6 +1102,9 @@ void closePanel(int panelName) {
 }
 
 void panelWaveHello() {
+  #ifdef DOMEMECH_DEBUG
+    Serial.println("Waving hello with panel 11.");
+  #endif
   //wave panel 11 or 13?
   openPanel(P11); //open/max
   closePanel(P11); //close/min
@@ -1045,6 +1113,9 @@ void panelWaveHello() {
 }
 
 void panelDance() {
+  #ifdef DOMEMECH_DEBUG
+    Serial.println("Running panel dance sequence.");
+  #endif
   //open/close in sequence with cantina dance
 }
 
@@ -1135,11 +1206,16 @@ int getPwmChannel(int panelName) {
 void DomeZapperUp() { // this function is for the dome zapper
   switch (statezapup) {
     case ZAP_MOVE_TOP:
-    Serial.println("in DomeZapperUp() case ZAP_MOVE_TOP");
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the dome zapper to the top.");
+      #endif
       if (ZTopVal != LOW) {
         if (digitalRead(ZTop) == HIGH && digitalRead(ZBot) == LOW) {
+          #ifdef DOMEMECH_DEBUG
+            Serial.println("Opening dome zapper pie panel.");
+          #endif
           Serial.print("opening zapper pie panel");
-          pwm1.setPWM(2, 0, ZSERVOMAX); // open the pie panel
+          pwm1.setPWM(ZPPCHANNEL, 0, ZSERVOMAX); // open the pie panel
         }
         digitalWrite(ZIN1, HIGH); //turn the dc motor on
         Serial.println("zapper motor on");
@@ -1148,20 +1224,24 @@ void DomeZapperUp() { // this function is for the dome zapper
       }
       break;
     case ZAP_TOP:
-    Serial.println("in DomeZapperUp() case ZAP_TOP");
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Dome zapper is at the top.");
+      #endif
       if (ZTopVal == LOW) {
         digitalWrite(ZIN1, LOW); //turn the motor off
         digitalWrite(ZIN2, LOW); //turn the motor off
-        //pwm0.setPWM(4, 0, ZAPSERVOMAX); //lift zapper arm
+        pwm0.setPWM(ZAPCHANNEL, 0, ZAPSERVOMAX); //lift zapper arm
       }
       break;
   }
 }
 
 void DomeZapperDown() { // this function is for the dome zapper
-Serial.println("in DomeZapperDown()");
   switch (statezapdown) {
     case ZAP_MOVE_BOT:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the dome zapper to the bottom.");
+      #endif
       if (ZBotVal != LOW) {
         digitalWrite(ZIN1, LOW); //turn the dc motor on
         digitalWrite(ZIN2, HIGH);
@@ -1169,11 +1249,17 @@ Serial.println("in DomeZapperDown()");
       }
       break;
     case ZAP_BOT:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Dome zapper is at the bottom.");
+      #endif
       if (ZBotVal == LOW) {
         digitalWrite(ZIN1, LOW); //turn the dc motor on
         digitalWrite(ZIN2, LOW);
         if (digitalRead(ZBot) == LOW && digitalRead(ZTop) == HIGH) {
-          pwm1.setPWM(2, 0, ZSERVOMIN); // close the pie panel
+          #ifdef DOMEMECH_DEBUG
+            Serial.println("Closing dome zapper pie panel.");
+          #endif
+          pwm1.setPWM(ZPPCHANNEL, 0, ZSERVOMIN); // close the pie panel
         }
       }
       break;
@@ -1183,16 +1269,22 @@ Serial.println("in DomeZapperDown()");
 void DomeZapper() { //lift zapper arm servo, flash light, rotate to new position and flash, return to first position, arm down
   switch (statez) {
     case 1:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Lifting the dome zapper arm.");
+      #endif
       currentMillis = millis();
-      pwm0.setPWM(4, 0, panelMap[4][4]); //lift zapper arm
+      pwm0.setPWM(ZAPCHANNEL, 0, ZAPSERVOMAX); //lift zapper arm
       if (currentMillis - zapturnpreviousMillis >= zapturninterval2) {
         statez = 2;
         zapturnpreviousMillis = currentMillis;  
       }
       break;
     case 2:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Turning the dome zapper arm to MAX.");
+      #endif
       currentMillis = millis();
-      pwm0.setPWM(5, 0, panelMap[5][4]); //turn zapper arm
+      pwm0.setPWM(ZAPTURNCHANNEL, 0, ZAPTURNSERVOMAX); //turn zapper arm
       ZapLed(); // flash the LED
       if (currentMillis - zapturnpreviousMillis >= zapturninterval2) {
         statez = 3;
@@ -1200,9 +1292,12 @@ void DomeZapper() { //lift zapper arm servo, flash light, rotate to new position
       }
       break;
     case 3:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Turning the dome zapper arm to MIN.");
+      #endif
       currentMillis = millis();
       if (currentMillis - zapturnpreviousMillis >= zapturninterval2) {
-        pwm0.setPWM(5, 0, panelMap[5][3]); //turn
+        pwm0.setPWM(ZAPTURNCHANNEL, 0, ZAPTURNSERVOMIN); //turn
         statez = 0;
         zapturnpreviousMillis = currentMillis;
       }
@@ -1213,22 +1308,31 @@ void DomeZapper() { //lift zapper arm servo, flash light, rotate to new position
 void ZapLed() {
   switch (statezl) {
     case 0:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Turning on the dome zapper LED.");
+      #endif
       currentMillis = millis();
-      pwm0.setPWM(8, 4096, 0); // sets the led HIGH from the PCA9685
+      pwm0.setPWM(ZLEDCHANNEL, 4096, 0); // sets the led HIGH from the PCA9685
       if (currentMillis - zappreviousMillis >= zapinterval) {
         zappreviousMillis = currentMillis;
         statezl = 1;
       }
       break;
     case 1:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Turning off the dome zapper LED.");
+      #endif
       currentMillis = millis();
-      pwm0.setPWM(8, 0, 4096); // sets the led LOW from the PCA9685
+      pwm0.setPWM(ZLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
       if (currentMillis - zappreviousMillis >= zapinterval) {
         zappreviousMillis = currentMillis;
         statezl = 2;
       }
       break;
     case 2:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Flashing on the dome zapper LED.");
+      #endif
       currentMillis = millis();
       zapflashcount++;
       if (zapflashcount == 80) {
@@ -1246,6 +1350,9 @@ void ZapLed() {
 void PeriscopeUp() { //button tirggered Lift periscope, flash lights, rotate back and forwards, when button triggered again lower again in home position turn off lights
   switch (statepup) {
     case P_MOVE_TOP:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the periscope to the top.");
+      #endif
       if (PTopVal != LOW) {
         digitalWrite(PIN1, HIGH); //turn the dc motor on
         digitalWrite(PIN2, LOW);
@@ -1254,8 +1361,11 @@ void PeriscopeUp() { //button tirggered Lift periscope, flash lights, rotate bac
       }
       break;
     case P_TOP:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Periscope is at the top.");
+      #endif
       if (PTopVal == LOW) {
-        pwm0.setPWM(11, 4096, 0); // sets the led HIGH from the PCA9685
+        pwm0.setPWM(PLEDCHANNEL, 4096, 0); // sets the led HIGH from the PCA9685
         digitalWrite(PIN1, LOW); //turn the motor off
         digitalWrite(PIN2, LOW); //turn the motor off
       }
@@ -1266,16 +1376,22 @@ void PeriscopeUp() { //button tirggered Lift periscope, flash lights, rotate bac
 void PeriscopeDown() { // this function lowers the periscope
   switch (statepdown) {
     case P_MOVE_BOT:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the periscope to the bottom.");
+      #endif
       if (PBotVal != LOW) {
-        pwm0.setPWM(11, 0, 4096); // sets the led LOW from the PCA9685
+        pwm0.setPWM(PLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
         digitalWrite(PIN1, LOW); //turn the dc motor on
         digitalWrite(PIN2, HIGH);
         statepdown = P_BOT;
       }
       break;
     case P_BOT:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Periscope is at the bottom.");
+      #endif
       if (PBotVal == LOW) {
-        pwm0.setPWM(11, 0, 4096); // sets the led LOW from the PCA9685
+        pwm0.setPWM(PLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
         digitalWrite(PIN1, LOW); //turn the dc motor on
         digitalWrite(PIN2, LOW);
         togglePLed();
@@ -1287,17 +1403,23 @@ void PeriscopeDown() { // this function lowers the periscope
 void PeriscopeTurn() { // turn the periscope back and forwards
   switch (statept) {
     case 0:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Turning the periscope to MAX.");
+      #endif
       currentMillis = millis();
       if (currentMillis - pturnpreviousMillis >= pturninterval) {
-        pwm0.setPWM(6, 0, PTURNSERVOMAX); //turn
+        pwm0.setPWM(PTURNCHANNEL, 0, PTURNSERVOMAX); //turn
         pturnpreviousMillis = currentMillis;
         statept = 1;
       }
       break;
     case 1:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Turning the periscope to MIN.");
+      #endif
       currentMillis = millis();
       if (currentMillis - pturnpreviousMillis >= pturninterval) {
-        pwm0.setPWM(6, 0, PTURNSERVOMIN); //turn
+        pwm0.setPWM(PTURNCHANNEL, 0, PTURNSERVOMIN); //turn
         pturnpreviousMillis = currentMillis;
         statept = 2;
       }
@@ -1317,27 +1439,47 @@ void PeriscopeTurn() { // turn the periscope back and forwards
 
 void togglePLed() {
   if (isPLedOn) {
+    #ifdef DOMEMECH_DEBUG
+      Serial.println("Periscope LED is on, turning it off.");
+    #endif
     pwm0.setPWM(PLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
   } else {
+    #ifdef DOMEMECH_DEBUG
+      Serial.println("Periscope LED is off, turning it on.");
+    #endif
     pwm0.setPWM(PLEDCHANNEL, 4096, 0); // sets the led HIGH from the PCA9685
   }
 }
 
 
 void LifeformUp() {
+  Serial.print("statelfup = "); Serial.println(statelfup);
+  Serial.print("statelfdown = "); Serial.println(statelfdown);
   switch (statelfup) {
     case LF_MOVE_TOP:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the lifeform scanner to the top.");
+      #endif
       if (LFTopVal != LOW) {
         if (digitalRead(LFTop) == HIGH && digitalRead(LFBot) == LOW) {
-          pwm2.setPWM(0, 0, LFSERVOMAX); // open the pie panel
+          #ifdef DOMEMECH_DEBUG
+            Serial.println("Opening lifeform scanner pie panel.");
+          #endif
+          pwm2.setPWM(LFPPCHANNEL, 0, LFSERVOMAX); // open the pie panel
         }
         digitalWrite(LFIN1, HIGH); //turn the dc motor on
         digitalWrite(LFIN2, LOW);
         statelfup = LF_TOP;
+        statelfdown = LF_MOVE_BOT;
+        Serial.print("statelfup = "); Serial.println(statelfup);
+        Serial.print("statelfdown = "); Serial.println(statelfdown);
         toggleLFLed();
       }
       break;
     case LF_TOP:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Lifeform scanner is at the top.");
+      #endif
       if (LFTopVal == LOW) {
         digitalWrite(LFIN1, LOW); //turn the motor off
         digitalWrite(LFIN2, LOW); //turn the motor off
@@ -1347,20 +1489,34 @@ void LifeformUp() {
 }
 
 void LifeformDown() {
+  Serial.print("statelfup = "); Serial.println(statelfup);
+  Serial.print("statelfdown = "); Serial.println(statelfdown);
   switch (statelfdown) {
     case LF_MOVE_BOT:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the lifeform scanner to the bottom.");
+      #endif
       if (LFBotVal != LOW) {
         digitalWrite(LFIN1, LOW); //turn the dc motor on
         digitalWrite(LFIN2, HIGH);
         statelfdown = LF_BOT;
+        statelfup = LF_MOVE_TOP;
+        Serial.print("statelfup = "); Serial.println(statelfup);
+        Serial.print("statelfdown = "); Serial.println(statelfdown);
       }
       break;
     case LF_BOT:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Lifeform scanner is at the bottom.");
+      #endif
       if (LFBotVal == LOW) {
-        digitalWrite(LFIN1, LOW); //turn the dc motor on
+        digitalWrite(LFIN1, LOW); //turn the dc motor off
         digitalWrite(LFIN2, LOW);
         if (digitalRead(LFBot) == LOW && digitalRead(LFTop) == HIGH) {
-          pwm2.setPWM(0, 0, LFSERVOMIN); // close the pie panel
+          #ifdef DOMEMECH_DEBUG
+            Serial.println("Closing lifeform scanner pie panel.");
+          #endif
+          pwm2.setPWM(LFPPCHANNEL, 0, LFSERVOMIN); // close the pie panel
         }
         toggleLFLed();
       }
@@ -1371,17 +1527,23 @@ void LifeformDown() {
 void LFTurn() {
   switch (statelft) {
     case 0:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Turning the lifeform scanner to MAX.");
+      #endif
       currentMillis = millis();
       if (currentMillis - lfturnpreviousMillis >= lfturninterval) {
-        pwm0.setPWM(7, 0, LFTURNSERVOMAX); //Lifeform turn
+        pwm0.setPWM(LFTURNCHANNEL, 0, LFTURNSERVOMAX); //Lifeform turn
         lfturnpreviousMillis = currentMillis;
         statelft = 1;
       }
       break;
     case 1:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Turning the lifeform scanner to MIN.");
+      #endif
       currentMillis = millis();
       if (currentMillis - lfturnpreviousMillis >= lfturninterval) {
-        pwm0.setPWM(7, 0, LFTURNSERVOMIN); //Lifeform turn
+        pwm0.setPWM(LFTURNCHANNEL, 0, LFTURNSERVOMIN); //Lifeform turn
         lfturnpreviousMillis = currentMillis;
         statelft = 2;
       }
@@ -1402,8 +1564,14 @@ void LFTurn() {
 
 void toggleLFLed() {
   if (isLFLedOn) {
+    #ifdef DOMEMECH_DEBUG
+      Serial.println("Lifeform LED is on, turning it off.");
+    #endif
     pwm0.setPWM(LFLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
   } else {
+    #ifdef DOMEMECH_DEBUG
+      Serial.println("Lifeform LED is off, turning it on.");
+    #endif
     pwm0.setPWM(LFLEDCHANNEL, 4096, 0); // sets the led HIGH from the PCA9685
   }
 }
@@ -1412,20 +1580,26 @@ void toggleLFLed() {
 void BadMotivatorUp() {
   switch (statebmup) {
     case BM_MOVE_TOP:
-    Serial.println("in BadMotivatorUp() case BM_MOVE_TOP");
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the bad motivator to the top.");
+      #endif
       if (BMTopVal != LOW) {
         if (digitalRead(BMTop) == HIGH && digitalRead(BMBot) == LOW) {
-          pwm1.setPWM(1, 0, BMSERVOMAX); // open the pie panel
+          #ifdef DOMEMECH_DEBUG
+            Serial.println("Opening bad motivator pie panel.");
+          #endif
+          pwm1.setPWM(BMPPCHANNEL, 0, BMSERVOMAX); // open the pie panel
         }
         digitalWrite(BMIN1, HIGH); //turn the dc motor on
-        Serial.println("BM motor on");
         digitalWrite(BMIN2, LOW);
         statebmup = BM_TOP;
         toggleBadMotivatorLed();
       }
       break;
     case BM_TOP:
-    Serial.println("in BadMotivatorUp() case BM_TOP");
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Bad motivator is at the top.");
+      #endif
       if (BMTopVal == LOW) {
         digitalWrite(BMIN1, LOW); //turn the motor off
         digitalWrite(BMIN2, LOW); //turn the motor off
@@ -1437,7 +1611,9 @@ void BadMotivatorUp() {
 void BadMotivatorDown() {
   switch (statebmdown) {
     case BM_MOVE_BOT:
-    Serial.println("in BadMotivatorDown() case BM_MOVE_BOT");
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the bad motivator to the bottom.");
+      #endif
       if (BMBotVal != LOW) {
         digitalWrite(BMIN1, LOW); //turn the dc motor on
         digitalWrite(BMIN2, HIGH);
@@ -1445,12 +1621,17 @@ void BadMotivatorDown() {
       }
       break;
     case BM_BOT:
-    Serial.println("in BadMotivatorDown() case BM_BOT");
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Bad motivator is at the bottom.");
+      #endif
       if (BMBotVal == LOW) {
         digitalWrite(BMIN1, LOW); //turn the dc motor on
         digitalWrite(BMIN2, LOW);
         if (digitalRead(BMBot) == LOW && digitalRead(BMTop) == HIGH) {
-          pwm1.setPWM(1, 0, BMSERVOMIN); // close the pie panel
+          #ifdef DOMEMECH_DEBUG
+            Serial.println("Cosing bad motivator pie panel.");
+          #endif
+          pwm1.setPWM(BMPPCHANNEL, 0, BMSERVOMIN); // close the pie panel
         }
         toggleBadMotivatorLed();
       }
@@ -1460,8 +1641,14 @@ void BadMotivatorDown() {
 
 void toggleBadMotivatorLed() {
   if (isBMLedOn) {
+    #ifdef DOMEMECH_DEBUG
+      Serial.println("Bad Motivator LED is on, turning it off.");
+    #endif
     pwm0.setPWM(BMLEDCHANNEL, 0, 4096); // sets the led LOW from the PCA9685
   } else {
+    #ifdef DOMEMECH_DEBUG
+      Serial.println("Bad Motivator LED is off, turning it on.");
+    #endif
     pwm0.setPWM(BMLEDCHANNEL, 4096, 0); // sets the led HIGH from the PCA9685
   }
 }
@@ -1470,9 +1657,15 @@ void toggleBadMotivatorLed() {
 void LightsaberUp() {
   switch (statelsup) {
     case LS_MOVE_TOP:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the lightsaber to the top.");
+      #endif
       if (LSTopVal != LOW) {
         if (digitalRead(LSTop) == HIGH && digitalRead(LSBot) == LOW) {
-          pwm1.setPWM(0, 0, LSSERVOMAX); // open the pie panel
+          #ifdef DOMEMECH_DEBUG
+            Serial.println("Opening lightsaber pie panel.");
+          #endif
+          pwm1.setPWM(LSPPCHANNEL, 0, LSSERVOMAX); // open the pie panel
         }
         digitalWrite(LSIN1, HIGH); //turn the dc motor on
         digitalWrite(LSIN2, LOW);
@@ -1480,6 +1673,9 @@ void LightsaberUp() {
       }
       break;
     case LS_TOP:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Lightsaber is at the top.");
+      #endif
       if (LSTopVal == LOW) {
         digitalWrite(LSIN1, LOW); //turn the motor off
         digitalWrite(LSIN2, LOW); //turn the motor off
@@ -1491,6 +1687,9 @@ void LightsaberUp() {
 void LightsaberDown() {
   switch (statelsdown) {
     case LS_MOVE_BOT:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Moving the lightsaber to the bottom.");
+      #endif
       if (LSBotVal != LOW) {
         digitalWrite(LSIN1, LOW); //turn the dc motor on
         digitalWrite(LSIN2, HIGH);
@@ -1498,11 +1697,17 @@ void LightsaberDown() {
       }
       break;
     case LS_BOT:
+      #ifdef DOMEMECH_DEBUG
+        Serial.println("Lightsaber is at the bottom.");
+      #endif
       if (LSBotVal == LOW) {
         digitalWrite(LSIN1, LOW); //turn the dc motor on
         digitalWrite(LSIN2, LOW);
         if (digitalRead(LSBot) == LOW && digitalRead(LSTop) == HIGH) {
-          pwm1.setPWM(0, 0, LSSERVOMIN); // close the pie panel
+          #ifdef DOMEMECH_DEBUG
+            Serial.println("Closing lightsaber pie panel.");
+          #endif
+          pwm1.setPWM(LSPPCHANNEL, 0, LSSERVOMIN); // close the pie panel
         }
       }
       break;
