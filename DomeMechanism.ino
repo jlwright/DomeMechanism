@@ -483,13 +483,30 @@ void loop() {
   // DomeZapperUp();
   // LightsaberUp();
   Serial.println("***LifeformUp()");
-  LifeformUp();
+  digitalWrite(LFIN1, HIGH); //turn the dc motor on going up
+  digitalWrite(LFIN2, LOW);
+  // LifeformUp();
   SerialOut();
-  delay(5000);
+  delay(750);
   Serial.println("***LifeformDown()");
-  LifeformDown();
+  digitalWrite(LFIN1, LOW); //turn the dc motor on going down
+  digitalWrite(LFIN2, HIGH);
+  // LifeformDown();
   SerialOut();
-  delay(5000);
+  delay(750);
+
+  // Serial.println("***LightsaberUp()");
+  // digitalWrite(PIN1, HIGH); //turn the dc motor on going up
+  // digitalWrite(PIN2, LOW);
+  // // LifeformUp();
+  // SerialOut();
+  // delay(750);
+  // Serial.println("***LightsaberDown()");
+  // digitalWrite(PIN1, LOW); //turn the dc motor on going down
+  // digitalWrite(PIN2, HIGH);
+  // // LifeformDown();
+  // SerialOut();
+  // delay(750);
 
   //Button functionality
   // buttonState = digitalRead(buttonPin); // main trigger for button inputs
